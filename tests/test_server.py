@@ -21,6 +21,9 @@ class ByteCodec:
     def decode(self, ids):
         return bytes(ids).decode(errors='replace')
 
+    def token_bytes(self, token):
+        return bytes([token])
+
     def render(self, messages, tools=None, enable_thinking=False):
         if not isinstance(messages, list) or not messages:
             raise ValueError('messages must be a nonempty list')
@@ -200,6 +203,56 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(body['choices'][0]['message']['content'], 'Hello')
         self.assertGreater(self.runtime.eval_calls, 0)
 
+    def test_sampling_can_choose_non_argmax_and_top_p_limits_candidates(self):
+        original = self.runtime.evaluate
+
+        def equal_logits(tokens):
+            rows = original(tokens)
+            for row in rows:
+                row[:] = [-1000.0] * len(row)
+                row[65] = row[66] = 0.0
+            return rows
+
+        self.runtime.evaluate = equal_logits
+        status, body = self.request(self.payload(temperature=1, seed=0, max_tokens=1))
+        self.assertEqual((status, body['choices'][0]['message']['content']), (200, 'B'))
+        status, body = self.request(self.payload(temperature=1, top_p=0.5, seed=0, max_tokens=1))
+        self.assertEqual((status, body['choices'][0]['message']['content']), (200, 'A'))
+
+    def test_stream_sends_role_before_blocked_prefill(self):
+        self.runtime.block = True
+        connection = self.connection()
+        connection.request('POST', '/v1/chat/completions', json.dumps(self.payload(stream=True)),
+                           {'Content-Type': 'application/json'})
+        response = connection.getresponse()
+        self.assertTrue(self.runtime.entered.wait(2))
+        self.assertEqual(response.status, 200)
+        role = json.loads(response.readline().decode().removeprefix('data: '))
+        self.assertEqual(role['choices'][0]['delta'], {'role': 'assistant'})
+        self.runtime.release.set()
+        self.assertIn(b'[DONE]', response.read())
+
+    def test_incomplete_utf8_at_length_is_replaced_once(self):
+        self.runtime.output = list('🌍'.encode()) + [256]
+        chunks = self.stream(self.payload(stream=True, max_tokens=2))
+        text = ''.join(c['choices'][0]['delta'].get('content', '') for c in chunks)
+        self.assertEqual(text, '\ufffd')
+        self.assertEqual(chunks[-1]['choices'][0]['finish_reason'], 'length')
+
+    def test_default_completion_budget_fits_remaining_context(self):
+        self.engine.context = self.runtime.context = 4
+        payload = self.payload()
+        payload.pop('max_tokens')
+        status, body = self.request(payload)
+        self.assertEqual(status, 200)
+        self.assertEqual(body['choices'][0]['message']['content'], 'Hel')
+        self.assertEqual(body['choices'][0]['finish_reason'], 'length')
+
+    def test_invalid_stop_and_stream_options_are_not_silently_ignored(self):
+        for overrides in ({'stop': 0}, {'stop': ''}, {'stream_options': []}):
+            with self.subTest(overrides=overrides):
+                self.assertEqual(self.request(self.payload(**overrides))[0], 400)
+
     def test_busy_is_immediate_and_health_remains_available(self):
         self.runtime.block = True
         payload = self.payload()
@@ -233,11 +286,13 @@ class ServerTests(unittest.TestCase):
         self.assertLessEqual(self.runtime.position, 8)
         self.assertEqual(self.request(self.payload('NEW', max_tokens=1))[0], 200)
 
-    def test_runtime_failure_is_json_before_headers_and_does_not_hold_lock(self):
+    def test_runtime_failure_is_json_or_terminal_sse_and_does_not_hold_lock(self):
         self.runtime.failure = 'numeric failure'
-        status, body = self.request(self.payload(stream=True))
+        status, body = self.request(self.payload())
         self.assertEqual(status, 500)
         self.assertEqual(body['error']['code'], 'inference_error')
+        chunks = self.stream(self.payload(stream=True))
+        self.assertEqual(chunks[-1]['error']['code'], 'inference_error')
         self.assertFalse(self.engine.busy)
         self.runtime.failure = None
         self.assertEqual(self.request(self.payload())[0], 200)

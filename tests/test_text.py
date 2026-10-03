@@ -345,6 +345,11 @@ class AssistantParserTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_assistant('<tool_call><function=ping></function></tool_call>')
 
+    def test_token_limit_can_end_inside_reasoning_without_leaking_it(self):
+        self.assertEqual(parse_assistant('<think>unfinished <'),
+                         {'role': 'assistant', 'content': None,
+                          'reasoning_content': 'unfinished <'})
+
     def test_plain_angles_and_eos_never_corrupt_text(self):
         self.assertEqual(parse_assistant('x < y & é'), {'role': 'assistant', 'content': 'x < y & é'})
         self.assertEqual(parse_assistant('done<|im_end|>'), {'role': 'assistant', 'content': 'done'})
