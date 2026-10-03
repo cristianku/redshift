@@ -1,6 +1,6 @@
-# QVelox
+# Redshift
 
-**QVelox** is an experimental high-performance inference engine for **dense LLMs**, initially focused on **Qwen3.8** and **NVIDIA Volta GPUs**, especially the **Tesla V100 32 GB**.
+**Redshift** is an experimental high-performance inference engine for **dense LLMs**, initially focused on **Qwen3.8** and **NVIDIA Volta GPUs**, especially the **Tesla V100 32 GB**.
 
 The project is built around one question:
 
@@ -8,7 +8,7 @@ The project is built around one question:
 
 ## Goals
 
-QVelox is not intended to be another general-purpose inference framework.
+Redshift is not intended to be another general-purpose inference framework.
 
 The initial objective is a small, specialized runtime optimized for:
 
@@ -25,7 +25,7 @@ A long-term performance target is to investigate whether **~100 generated tokens
 
 That number is a **research target, not a claimed benchmark**.
 
-## Why QVelox?
+## Why Redshift?
 
 For a large dense model, ordinary autoregressive decoding repeatedly streams a substantial fraction of the model weights for every generated token.
 
@@ -33,7 +33,7 @@ On a Tesla V100, memory bandwidth is therefore one of the main physical limits.
 
 Simply rewriting an existing inference engine while keeping the same one-token-at-a-time execution model is unlikely to produce a dramatic breakthrough.
 
-QVelox instead explores a different execution strategy:
+Redshift instead explores a different execution strategy:
 
 1. propose several tokens,
 2. process or verify them together,
@@ -78,7 +78,7 @@ Model loader
 
 The first implementation will use GGUF as the model container.
 
-Where appropriate, QVelox may reuse or adapt compatible open-source components, while keeping licensing and attribution requirements explicit.
+Where appropriate, Redshift may reuse or adapt compatible open-source components, while keeping licensing and attribution requirements explicit.
 
 ### Volta kernels
 
@@ -108,7 +108,7 @@ including all required final projections and state updates.
 
 ### Speculative decoding / MTP
 
-QVelox will investigate speculative decoding and model-native multi-token prediction where supported.
+Redshift will investigate speculative decoding and model-native multi-token prediction where supported.
 
 Correctness comes first: rejected proposals must restore all relevant model state and caches exactly.
 
@@ -159,10 +159,12 @@ Early milestones:
 
 ## Status
 
-QVelox is currently in the **research and initial implementation phase**.
+Redshift is currently in the **research and initial implementation phase**.
 
 APIs, file layout and kernel interfaces should be considered unstable.
 
 ## License
 
-License to be defined before third-party code is incorporated.
+Redshift is licensed under the **MIT License**. See [LICENSE](LICENSE).
+
+Third-party components incorporated into the project retain their respective copyright notices and license requirements.
