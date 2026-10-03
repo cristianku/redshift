@@ -448,6 +448,44 @@ __global__ void argmax(int *out,const float *x) {
     for(int d=128;d;d>>=1){if(tid<d && (val[tid+d]>val[tid] || (val[tid+d]==val[tid] && idx[tid+d]<idx[tid]))){val[tid]=val[tid+d];idx[tid]=idx[tid+d];}__syncthreads();}
     if(!tid)out[t]=idx[0];
 }
+// Online softmax keeps shared storage constant as the context grows. The short
+// path above remains unchanged for numerical/performance regression comparison.
+__global__ void attention_tiled(float *out,const float *q,const float *gate,
+        const __half *kc,const __half *vc,int base) {
+    const int h=blockIdx.x,t=blockIdx.y,tid=threadIdx.x,lane=tid%32,warp=tid/32;
+    const int n=base+t+1,kh=h/6;
+    __shared__ float score[256],red[8];
+    float maximum=-INFINITY,denominator=0,value=0;
+    for(int start=0;start<n;start+=256) {
+        const int count=min(256,n-start);
+        for(int p=warp;p<count;p+=8) {
+            float dot=0;
+            for(int i=lane;i<256;i+=32)
+                dot+=q[(t*24+h)*256+i]*__half2float(kc[((uint64_t)(start+p)*4+kh)*256+i]);
+            dot=sum(dot);
+            if(!lane)score[p]=dot*.0625f;
+        }
+        __syncthreads();
+        float peak=tid<count?score[tid]:-INFINITY;
+        for(int d=16;d;d>>=1)peak=fmaxf(peak,__shfl_xor_sync(0xffffffff,peak,d));
+        if(!lane)red[warp]=peak;
+        __syncthreads();
+        peak=maximum;
+        for(int i=0;i<8;i++)peak=fmaxf(peak,red[i]);
+        __syncthreads(); // All readers finish before block_sum reuses red.
+        const float previous=expf(maximum-peak);
+        const float weight=tid<count?expf(score[tid]-peak):0.f;
+        score[tid]=weight;
+        const float total=block_sum(weight,red);
+        value*=previous;
+        for(int p=0;p<count;p++)
+            value+=score[p]*__half2float(vc[((uint64_t)(start+p)*4+kh)*256+tid]);
+        denominator=denominator*previous+total;
+        maximum=peak;
+        __syncthreads();
+    }
+    out[(t*24+h)*256+tid]=value/denominator*sigmoid(gate[(t*24+h)*256+tid]);
+}
 } // namespace qv
 
 void k_mm(float *o,const void *w,const float *x,int type,int T,int K,int M) {
@@ -513,6 +551,7 @@ void k_delta(float *out,float *state,float *history,float *qkv,const float *z,fl
 void k_attention(float *o,void *kc,void *vc,float *q,float *gate,
         const float *qg,const float *k,const float *v,const float *qn,const float *kn,int T,int pos,float eps) {
     qv::attn_prepare<<<dim3(28,T),256>>>(q,gate,(__half*)kc,(__half*)vc,qg,k,v,qn,kn,pos,eps);
-    qv::attention<<<dim3(24,T),256>>>(o,q,gate,(const __half*)kc,(const __half*)vc,pos);
+    if(pos+T<=2048)qv::attention<<<dim3(24,T),256>>>(o,q,gate,(const __half*)kc,(const __half*)vc,pos);
+    else qv::attention_tiled<<<dim3(24,T),256>>>(o,q,gate,(const __half*)kc,(const __half*)vc,pos);
 }
 void k_argmax(int *out,const float *x,int T){qv::argmax<<<T,256>>>(out,x);}

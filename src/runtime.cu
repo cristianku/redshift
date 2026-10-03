@@ -170,7 +170,7 @@ extern "C" int qv_test_attention(float *out, void *key_cache, void *value_cache,
     return call([&] {
         batch_size(batch);
         epsilon_value(epsilon);
-        require(position >= 0 && position <= 2048 - batch, "attention context exceeds 2048");
+        require(position >= 0 && position <= 32768 - batch, "attention context exceeds 32768");
         require(out && key_cache && value_cache && q_gate && key && value && q_norm && k_norm,
                 "null attention buffer");
         const size_t output_bytes = size_t(batch) * 24 * 256 * sizeof(float);
@@ -351,10 +351,10 @@ struct Model {
 #endif
         check(cudaGetLastError());
     }
-    void evaluate(const int *tokens,int batch,float *out) {
+    void evaluate(const int *tokens,int batch,float *out,int *next=nullptr) {
         ready();
         batch_size(batch);
-        require(tokens && out, "null evaluation buffer");
+        require(tokens && (out || next), "null evaluation buffer");
         require(position<=context-batch, "evaluation exceeds context capacity");
         for(int i=0;i<batch;i++) require(tokens[i]>=0 && tokens[i]<V, "token ID outside vocabulary");
         // Preflight failures above cannot mutate state. Later failures poison it.
@@ -403,8 +403,10 @@ struct Model {
         k_norm(normalized->floats(),x->floats(),weights[2]->floats(),batch,E,epsilon);
         check(cudaGetLastError());
         projection(logits->floats(),1,normalized->floats(),batch);
+        if(next)k_argmax(static_cast<int *>(ids->data()),logits->floats(),batch);
         finish();
-        check(cudaMemcpy(out,logits->data(),size_t(batch)*V*sizeof(float),cudaMemcpyDeviceToHost));
+        if(next)check(cudaMemcpy(next,ids->data(),size_t(batch)*sizeof(int),cudaMemcpyDeviceToHost));
+        else check(cudaMemcpy(out,logits->data(),size_t(batch)*V*sizeof(float),cudaMemcpyDeviceToHost));
         position+=batch;
         poisoned=false;
     }
@@ -439,7 +441,7 @@ extern "C" int qv_create(void **handle,const char *path,int context,float epsilo
         require(handle!=nullptr, "null handle output");
         *handle=nullptr;
         require(path!=nullptr, "null model path");
-        require(context>=1 && context<=2048, "context capacity must be 1..2048");
+        require(context>=1 && context<=32768, "context capacity must be 1..32768");
         epsilon_value(epsilon);
         *handle=new Model(path,context,epsilon);
     });
@@ -449,6 +451,9 @@ extern "C" int qv_upload(void *handle,int slot,uint64_t offset,uint64_t length) 
 }
 extern "C" int qv_evaluate(void *handle,const int *tokens,int batch,float *out) {
     return call([&] { model(handle).evaluate(tokens,batch,out); });
+}
+extern "C" int qv_advance(void *handle,const int *tokens,int batch,int *next) {
+    return call([&] { model(handle).evaluate(tokens,batch,nullptr,next); });
 }
 extern "C" int qv_reset(void *handle) { return call([&] { model(handle).reset(); }); }
 extern "C" int qv_checkpoint(void *handle) { return call([&] { model(handle).copy_state(false); }); }

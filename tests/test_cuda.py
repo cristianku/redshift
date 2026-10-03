@@ -82,7 +82,7 @@ class CUDATests(unittest.TestCase):
             self.assertEqual(self.lib.qv_test_norm(value, value, value, 1, 1, epsilon), -1)
         # These dimensions must be rejected before any caller memory is read.
         self.assertEqual(self.lib.qv_test_delta(*([value] * 11), 1, 1, 1, 64, 1e-6), -1)
-        self.assertEqual(self.lib.qv_test_attention(*([value] * 8), 8, 2041, 1e-6), -1)
+        self.assertEqual(self.lib.qv_test_attention(*([value] * 8), 8, 32761, 1e-6), -1)
         self.check(self.lib.qv_test_norm(value, value, value, 1, 1, 1e-6))
         self.assertEqual(self.lib.qv_error(), b'')
 
@@ -233,3 +233,41 @@ class CUDATests(unittest.TestCase):
         self.close(out, sequential)
         self.assertEqual(kc.raw, seq_k.raw)
         self.assertEqual(vc.raw, seq_v.raw)
+
+    def test_attention_long_context_against_closed_form(self):
+        # Periodic exactly representable K/V give a scalar oracle without an
+        # O(context*heads*dimension) Python reference. Nonuniform scores ensure
+        # this tests softmax normalization and tile rescaling, not just averaging.
+        key_rows = [struct.pack('<1024e', *([0.]*64+[level]*192)*4)
+                    for level in ((i-3)*.25 for i in range(7))]
+        value_rows = [struct.pack('<1024e', *[
+            (p-5)*.125+h*.03125+(d%4)*.0625 for h in range(4) for d in range(256)])
+            for p in range(11)]
+        query = [0.]*64+[(i%4+1)*.03125 for i in range(192)]
+        scale = 1/math.sqrt(sum(x*x for x in query)/256+1e-6)
+        qsum = sum(query)*scale
+        for position, batch in ((2047,3), (32767,1)):
+            with self.subTest(position=position, batch=batch):
+                prefix_k = b''.join(key_rows[p%7] for p in range(position))
+                prefix_v = b''.join(value_rows[p%11] for p in range(position))
+                kc = ct.create_string_buffer(prefix_k+bytes(batch*2048))
+                vc = ct.create_string_buffer(prefix_v+bytes(batch*2048))
+                qg = floats((query+[0.]*256)*(batch*24))
+                k = floats([0.]*(batch*1024))
+                v = floats([(t+1)*.125+h*.03125+(d%4)*.0625
+                            for t in range(batch) for h in range(4) for d in range(256)])
+                norm = floats([1.]*256)
+                out = floats([0.]*(batch*6144))
+                self.check(self.lib.qv_test_attention(out,kc,vc,qg,k,v,norm,norm,batch,position,1e-6))
+                weights = [math.exp(qsum*((p%7-3)*.25)/16) for p in range(position)]
+                total = sum(weights)
+                numerator = sum(w*(p%11-5)*.125 for p,w in enumerate(weights))
+                expected = []
+                for t in range(batch):
+                    total += 1
+                    numerator += (t+1)*.125
+                    expected.extend(.5*(numerator/total+(h//6)*.03125+(d%4)*.0625)
+                                    for h in range(24) for d in range(256))
+                self.close(out,expected,3e-5)
+                self.assertEqual(kc.raw[:len(prefix_k)],prefix_k)
+                self.assertEqual(vc.raw[:len(prefix_v)],prefix_v)

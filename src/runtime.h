@@ -14,7 +14,7 @@ extern "C" {
 const char *qv_error(void);
 int qv_test_mm(float *out, const void *weights, const float *x,
                int kind, int batch, int width, int rows);
-/* DP4A path: Q8 activation blocks, FP32 scale/sum and accumulation.
+/* DP4A path: two-byte activation blocks, FP32 scale/sum and accumulation.
  * Compare with qv_test_mm for the original FP32-activation reference. */
 int qv_test_mm_fast(float *out, const void *weights, const float *x,
                int kind, int batch, int width, int rows);
@@ -39,7 +39,7 @@ int qv_test_delta(float *out, float *state, float *history,
  * out: [batch,24,256]; q_gate: [batch,24,512]; key/value: [batch,4,256];
  * q_norm/k_norm: [256]. Caches (in/out) hold IEEE float16 bits as
  * [position+batch,4,256]. Only the prefix [0,position) is read from host.
- * 0 <= position and position+batch <= 2048. */
+ * 0 <= position and position+batch <= 32768. */
 int qv_test_attention(float *out, void *key_cache, void *value_cache,
                       const float *q_gate, const float *key, const float *value,
                       const float *q_norm, const float *k_norm,
@@ -47,13 +47,16 @@ int qv_test_attention(float *out, void *key_cache, void *value_cache,
 
 /* Model ABI. One handle is single-threaded. Upload each validated manifest
  * slot once, before evaluating. Quantized weights are repacked on upload;
- * projections use Q8 activations and FP32 accumulation.
- * context: 1..2048, evaluate: 1..8 token IDs, out: [batch,248320] floats.
+ * projections use two-byte activations and FP32 accumulation.
+ * context: 1..32768, evaluate: 1..8 token IDs, out: [batch,248320] floats.
  * A checkpoint stores all recurrent state and the valid KV prefix. Restore
  * can be repeated; reset invalidates it. No implicit speculative acceptance. */
 int qv_create(void **handle, const char *path, int context, float epsilon);
 int qv_upload(void *handle, int slot, uint64_t offset, uint64_t length);
 int qv_evaluate(void *handle, const int *tokens, int batch, float *out);
+/* Same state transition as evaluate; downloads only each row's greedy token.
+ * next: [batch] integer IDs. Ties choose the lowest vocabulary ID. */
+int qv_advance(void *handle, const int *tokens, int batch, int *next);
 int qv_reset(void *handle);
 int qv_checkpoint(void *handle);
 int qv_restore(void *handle);

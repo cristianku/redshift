@@ -50,6 +50,21 @@ class ModelTests(unittest.TestCase):
         runtime.evaluate([10, 20, 30, 100, 101, 102])
         self.close_rows(actual, runtime.evaluate([900, 901]))
 
+    def test_advance_matches_all_logit_argmax_and_state(self):
+        runtime = self.runtime
+        runtime.reset()
+        runtime.evaluate([10,20,30])
+        runtime.checkpoint()
+        for batch in range(1,9):
+            ids = [100+13*i for i in range(batch)]
+            runtime.restore()
+            reference = runtime.evaluate(ids)
+            continuation = runtime.evaluate([900])
+            runtime.restore()
+            actual = runtime.advance(ids)
+            self.assertEqual(actual,[max(range(len(row)),key=row.__getitem__) for row in reference])
+            self.close_rows(runtime.evaluate([900]),continuation)
+
     def test_rejected_call_leaves_position_unchanged(self):
         runtime = self.runtime
         runtime.reset()

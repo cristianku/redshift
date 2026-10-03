@@ -30,13 +30,15 @@ class Runtime:
         self._handle = ct.c_void_p()
         self.model = read_gguf(path)
         epsilon = validate_qwen27b(self.model)
-        if type(context) is not int or not 1 <= context <= 2048:
-            raise ValueError('context must be an integer in 1..2048')
+        if type(context) is not int or not 1 <= context <= 32768:
+            raise ValueError('context must be an integer in 1..32768')
+        self.context = context
         self.lib = load_library(library)
         signatures = {
             'qv_create': [ct.POINTER(ct.c_void_p), ct.c_char_p, ct.c_int, ct.c_float],
             'qv_upload': [ct.c_void_p, ct.c_int, ct.c_uint64, ct.c_uint64],
             'qv_evaluate': [ct.c_void_p, ct.POINTER(ct.c_int), ct.c_int, ct.POINTER(ct.c_float)],
+            'qv_advance': [ct.c_void_p, ct.POINTER(ct.c_int), ct.c_int, ct.POINTER(ct.c_int)],
             'qv_position': [ct.c_void_p, ct.POINTER(ct.c_int)],
             'qv_reset': [ct.c_void_p], 'qv_checkpoint': [ct.c_void_p], 'qv_restore': [ct.c_void_p],
         }
@@ -85,6 +87,17 @@ class Runtime:
     def reset(self):
         self._open()
         self._check(self.lib.qv_reset(self._handle))
+
+    def advance(self, tokens):
+        """Evaluate 1..8 inputs and download only their greedy next-token IDs."""
+        self._open()
+        tokens = list(tokens)
+        if not 1 <= len(tokens) <= 8 or any(type(t) is not int or not 0 <= t < 248320 for t in tokens):
+            raise ValueError('expected 1..8 integer token IDs in 0..248319')
+        ids = (ct.c_int * len(tokens))(*tokens)
+        output = (ct.c_int * len(tokens))()
+        self._check(self.lib.qv_advance(self._handle, ids, len(tokens), output))
+        return list(output)
 
     def checkpoint(self):
         self._open()
