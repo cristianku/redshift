@@ -4,7 +4,7 @@ NVFLAGS = -O3 -std=c++17 -arch=sm_70 --split-compile $(JOBS) -Xcompiler=-fPIC,-W
 
 .PHONY: all test test-cuda memcheck
 all: build/libqvelox.so
-build/%.o: src/%.cu src/kernels.h
+build/%.o: src/%.cu src/kernels.h src/runtime.h
 	@mkdir -p build
 	$(NVCC) $(NVFLAGS) -c $< -o $@
 build/libqvelox.so: build/kernels.o build/runtime.o

@@ -6,6 +6,9 @@ import random
 import struct
 import unittest
 
+from cpu_reference import attention, delta, half
+from qvelox.runtime import load_library
+
 
 def floats(values):
     return (ct.c_float * len(values))(*values)
@@ -55,10 +58,32 @@ def quantized(kind, k, m):
 class CUDATests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.lib = ct.CDLL('build/libqvelox.so')
-        cls.lib.qv_error.restype = ct.c_char_p
-        cls.lib.qv_test_mm.argtypes = [ct.c_void_p, ct.c_void_p, ct.c_void_p] + [ct.c_int] * 4
-        cls.lib.qv_test_norm.argtypes = [ct.c_void_p] * 3 + [ct.c_int, ct.c_int, ct.c_float]
+        cls.lib = load_library()
+
+    def check(self, result):
+        self.assertEqual(result, 0, self.lib.qv_error())
+
+    def close(self, actual, expected, tolerance=3e-5):
+        self.assertEqual(len(actual), len(expected))
+        for i, (a, e) in enumerate(zip(actual, expected)):
+            self.assertTrue(math.isfinite(a), f'non-finite value at {i}')
+            self.assertAlmostEqual(a, e, delta=tolerance * (1 + abs(e)), msg=f'index {i}')
+
+    def test_rejects_invalid_arguments_before_accessing_buffers(self):
+        value = floats([1.])
+        for kind, batch, width, rows in ((0, 1, 256, 1), (8, 0, 32, 1),
+                                         (12, 9, 256, 1), (14, 1, 255, 1),
+                                         (8, 1, 32, 0)):
+            self.assertEqual(self.lib.qv_test_mm(value, value, value, kind, batch, width, rows), -1)
+            self.assertTrue(self.lib.qv_error())
+        self.assertEqual(self.lib.qv_test_mm(None, value, value, 8, 1, 32, 1), -1)
+        for epsilon in (0., -1., math.nan, math.inf):
+            self.assertEqual(self.lib.qv_test_norm(value, value, value, 1, 1, epsilon), -1)
+        # These dimensions must be rejected before any caller memory is read.
+        self.assertEqual(self.lib.qv_test_delta(*([value] * 11), 1, 1, 1, 64, 1e-6), -1)
+        self.assertEqual(self.lib.qv_test_attention(*([value] * 8), 8, 2041, 1e-6), -1)
+        self.check(self.lib.qv_test_norm(value, value, value, 1, 1, 1e-6))
+        self.assertEqual(self.lib.qv_error(), b'')
 
     def test_all_quantized_formats_all_candidate_rows(self):
         for kind in (8, 12, 14):
@@ -86,3 +111,76 @@ class CUDATests(unittest.TestCase):
             inv = 1 / math.sqrt(sum(x[t * width + i] ** 2 for i in range(width)) / width + 1e-6)
             for i in range(width):
                 self.assertAlmostEqual(out[t * width + i], x[t * width + i] * inv * w[i], delta=2e-6)
+
+    def test_delta_matches_cpu_and_sequential_nonzero_state(self):
+        for dim in (32, 128):
+            with self.subTest(dim=dim):
+                batch, hk, hv = 3, 2, 4
+                channels = (2 * hk + hv) * dim
+                def wave(n, phase, scale=.1):
+                    return floats([scale * math.sin(i * .037 + phase) for i in range(n)])
+                state = wave(hv * dim * dim, .3, .01)
+                history = wave(3 * channels, .7)
+                qkv = wave(batch * channels, 1.1)
+                gate = wave(batch * hv * dim, 1.7, .8)
+                alpha, beta = wave(batch * hv, .2), wave(batch * hv, .9)
+                conv = wave(channels * 4, .6, .4)
+                decay, bias = floats([-.5 - h * .1 for h in range(hv)]), wave(hv, .4)
+                norm = floats([.8 + i / dim * .2 for i in range(dim)])
+                expected = delta(state, history, qkv, gate, alpha, beta, conv, decay,
+                                 bias, norm, batch, hk, hv, dim, 1e-6)
+                s, hist = floats(state), floats(history)
+                out = floats([0.] * (batch * hv * dim))
+                self.check(self.lib.qv_test_delta(out, s, hist, qkv, gate, alpha, beta,
+                                                  conv, decay, bias, norm, batch, hk, hv, dim, 1e-6))
+                for actual, reference in zip((out, s, hist), expected):
+                    self.close(actual, reference)
+                # Splitting a chunk must carry convolution AND recurrent state.
+                seq_s, seq_h = floats(state), floats(history)
+                sequential = []
+                for t in range(batch):
+                    row = floats([0.] * (hv * dim))
+                    self.check(self.lib.qv_test_delta(
+                        row, seq_s, seq_h, floats(qkv[t*channels:(t+1)*channels]),
+                        floats(gate[t*hv*dim:(t+1)*hv*dim]), floats(alpha[t*hv:(t+1)*hv]),
+                        floats(beta[t*hv:(t+1)*hv]), conv, decay, bias, norm, 1, hk, hv, dim, 1e-6))
+                    sequential.extend(row)
+                self.close(out, sequential)
+                self.close(s, seq_s)
+                self.close(hist, seq_h, 0)
+
+    def test_attention_cpu_prefix_causality_and_chunking(self):
+        batch, position = 3, 5
+        def wave(n, phase, scale=.3):
+            return floats([scale * math.sin(i * .051 + phase) for i in range(n)])
+        def cache(values):
+            return ct.create_string_buffer(struct.pack('<' + 'e' * len(values), *values))
+        def unpack(buffer):
+            return struct.unpack('<' + 'e' * ((position + batch) * 1024), buffer.raw[:-1])
+        prefix_k = [half(v) for v in wave(position * 1024, .5)]
+        prefix_v = [half(v) for v in wave(position * 1024, .9)]
+        kc = cache(prefix_k + [0.] * (batch * 1024))
+        vc = cache(prefix_v + [0.] * (batch * 1024))
+        qg, key, value = wave(batch * 12288, 1.5), wave(batch * 1024, .1), wave(batch * 1024, .7)
+        qn, kn = floats([1 + i / 512 for i in range(256)]), floats([1 - i / 512 for i in range(256)])
+        expected = attention(prefix_k, prefix_v, qg, key, value, qn, kn, batch, position, 1e-6)
+        out = floats([0.] * (batch * 6144))
+        self.check(self.lib.qv_test_attention(out, kc, vc, qg, key, value, qn, kn, batch, position, 1e-6))
+        self.close(out, expected[0], 3e-4)
+        self.close(unpack(kc), expected[1], 2e-3)
+        self.close(unpack(vc), expected[2], 0)
+        self.assertEqual(list(unpack(kc)[:position * 1024]), prefix_k)
+        # Sequential evaluation cannot see the later tokens in the chunk.
+        seq_k = cache(prefix_k + [0.] * (batch * 1024))
+        seq_v = cache(prefix_v + [0.] * (batch * 1024))
+        sequential = []
+        for t in range(batch):
+            row = floats([0.] * 6144)
+            self.check(self.lib.qv_test_attention(
+                row, seq_k, seq_v, floats(qg[t*12288:(t+1)*12288]),
+                floats(key[t*1024:(t+1)*1024]), floats(value[t*1024:(t+1)*1024]),
+                qn, kn, 1, position + t, 1e-6))
+            sequential.extend(row)
+        self.close(out, sequential)
+        self.assertEqual(kc.raw, seq_k.raw)
+        self.assertEqual(vc.raw, seq_v.raw)
