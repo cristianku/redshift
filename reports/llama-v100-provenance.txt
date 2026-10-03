@@ -1,0 +1,6 @@
+31629f53165ab6a7dad8c9847dcfd1fdf55829dac1e6e748f4a68581b0033d34  /opt/models/qwen3.8-27b/Qwen3.8-27B-Q4_K_M.gguf
+68d3154ddee7b13db8f295b6ce597f014a0aefef5a37eaa39b6a06e642803efc  build/llama-reference
+259475d9a50bc54fa10362360a4a6f1258b8bf45e78c54dbc3e655677aafd903  build/libqvelox.so
+96b9690eece28e7292fc6f3d50c309d3f31bd9b004c767ce88103531f6ac6e16  /opt/llama/bin/llama
+active
+Tesla V100-PCIE-32GB, GPU-1015f4d2-b64e-83ee-147f-780a38d7e199, 4 MiB, 0 %

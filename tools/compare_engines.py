@@ -59,8 +59,12 @@ def main():
               'gpu': subprocess.check_output(['nvidia-smi','--query-gpu=name,uuid,driver_version,memory.used,clocks.sm,clocks.mem','--format=csv'],text=True).strip(),
               'source_sha256': {str(p):hashlib.sha256(p.read_bytes()).hexdigest()
                                for p in sorted([*Path('src').glob('*'), *Path('qvelox').glob('*.py'), *Path('tools').glob('*')]) if p.is_file()},
+              'library_sha256': hashlib.sha256(Path('build/libqvelox.so').read_bytes()).hexdigest(),
               'model': {'path':str(args.model),'bytes':args.model.stat().st_size}}
+    load_started=time.perf_counter()
     with Runtime(args.model, context=prefix+8) as runtime:
+        report['load_seconds']=time.perf_counter()-load_started
+        report['gpu_loaded']=subprocess.check_output(['nvidia-smi','--query-gpu=memory.used,memory.total,utilization.gpu','--format=csv'],text=True).strip()
         for start in range(0,prefix,8):
             runtime.evaluate(list(range(10+start,10+min(start+8,prefix))))
         runtime.checkpoint()

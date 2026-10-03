@@ -1,0 +1,6 @@
+31629f53165ab6a7dad8c9847dcfd1fdf55829dac1e6e748f4a68581b0033d34  /opt/models/qwen3.8-27b/Qwen3.8-27B-Q4_K_M.gguf
+ce300ad54d2c89894001613daf9f64aa2160d48745224685c8dce18577c80cb0  build/libqvelox.so
+68d3154ddee7b13db8f295b6ce597f014a0aefef5a37eaa39b6a06e642803efc  build/llama-reference
+name, uuid, driver_version, memory.used [MiB], utilization.gpu [%]
+Tesla V100-PCIE-32GB, GPU-1015f4d2-b64e-83ee-147f-780a38d7e199, 580.178.04, 4 MiB, 0 %
+active

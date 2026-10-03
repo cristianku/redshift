@@ -10,6 +10,7 @@ def load_library(path=None):
     lib.qv_error.restype = ct.c_char_p
     signatures = {
         'qv_test_mm': [ct.c_void_p] * 3 + [ct.c_int] * 4,
+        'qv_test_mm_fast': [ct.c_void_p] * 3 + [ct.c_int] * 4,
         'qv_test_norm': [ct.c_void_p] * 3 + [ct.c_int] * 2 + [ct.c_float],
         'qv_test_delta': [ct.c_void_p] * 11 + [ct.c_int] * 4 + [ct.c_float],
         'qv_test_attention': [ct.c_void_p] * 8 + [ct.c_int] * 2 + [ct.c_float],

@@ -77,8 +77,8 @@ void finish() {
 
 extern "C" const char *qv_error(void) { return last_error; }
 
-extern "C" int qv_test_mm(float *out, const void *weights, const float *x,
-                           int kind, int batch, int width, int rows) {
+static int test_projection(float *out, const void *weights, const float *x,
+                           int kind, int batch, int width, int rows, bool optimized) {
     return call([&] {
         batch_size(batch);
         require(out && weights && x, "null projection buffer");
@@ -90,10 +90,26 @@ extern "C" int qv_test_mm(float *out, const void *weights, const float *x,
         Buffer w(bytes(bytes(size_t(width / block), block_bytes), rows), weights);
         Buffer input(bytes(bytes(size_t(batch), width), sizeof(float)), x);
         Buffer output(bytes(bytes(size_t(batch), rows), sizeof(float)));
-        k_mm(output.floats(), w.data(), input.floats(), kind, batch, width, rows);
+        if(optimized) {
+            Buffer workspace(k_mm_workspace_bytes(batch,width,rows));
+            Buffer packed(k_mm_weight_bytes(kind,width,rows));
+            k_mm_pack_weights(packed.data(),w.data(),kind,width,rows);
+            check(cudaGetLastError());
+            k_mm_packed(output.floats(),packed.data(),input.floats(),kind,batch,width,rows,workspace.data());
+            finish();
+        } else k_mm(output.floats(),w.data(),input.floats(),kind,batch,width,rows);
         finish();
         output.download(out);
     });
+}
+
+extern "C" int qv_test_mm(float *out,const void *weights,const float *x,
+                          int kind,int batch,int width,int rows) {
+    return test_projection(out,weights,x,kind,batch,width,rows,false);
+}
+extern "C" int qv_test_mm_fast(float *out,const void *weights,const float *x,
+                               int kind,int batch,int width,int rows) {
+    return test_projection(out,weights,x,kind,batch,width,rows,true);
 }
 
 extern "C" int qv_test_norm(float *out, const float *x, const float *weights,
@@ -246,7 +262,7 @@ struct Model {
     // For DeltaNet these are state/history; for attention they are K/V.
     std::array<Owned,L> state, history, saved_state, saved_history;
     Owned x, normalized, residual, qkv, gate, alpha, beta, mixed;
-    Owned query, attention_gate, key, value, ffn_gate, ffn_up, logits, ids;
+    Owned query, attention_gate, key, value, ffn_gate, ffn_up, logits, ids, projection_workspace;
 
     Model(const char *path,int capacity,float eps)
         : context(capacity),epsilon(eps),file(path,std::ios::binary|std::ios::ate),
@@ -262,6 +278,7 @@ struct Model {
         key=float_buffer(8*HKV*D); value=float_buffer(8*HKV*D);
         ffn_gate=float_buffer(8*F); ffn_up=float_buffer(8*F);
         logits=float_buffer(8*V); ids=allocate(8*sizeof(int));
+        projection_workspace=allocate(k_mm_workspace_bytes(8,F,V));
         for(int layer=0;layer<L;layer++) {
             state[layer]=allocate(state_bytes(layer));
             history[layer]=allocate(history_bytes(layer));
@@ -307,6 +324,12 @@ struct Model {
             check(cudaMemcpy(static_cast<char *>(tensor->data())+done,staging.data(),chunk,cudaMemcpyHostToDevice));
             done+=chunk;
         }
+        if(slot!=0 && spec.kind!=0) {
+            Owned packed=allocate(k_mm_weight_bytes(spec.kind,spec.width,spec.rows));
+            k_mm_pack_weights(packed->data(),tensor->data(),spec.kind,spec.width,spec.rows);
+            finish();
+            tensor=std::move(packed);
+        }
         weights[slot]=std::move(tensor);
         uploaded++;
         if(uploaded==TENSOR_COUNT) {
@@ -314,9 +337,10 @@ struct Model {
             std::vector<char>().swap(staging);
         }
     }
-    void projection(float *out,int slot,const float *input,int batch) {
+    // Only adjacent projections of the same unchanged input reuse Q8 blocks.
+    void projection(float *out,int slot,const float *input,int batch,bool reuse_input=false) {
         const Layout spec=layout(slot);
-        k_mm(out,weights[slot]->data(),input,spec.kind,batch,spec.width,spec.rows);
+        k_mm_packed(out,weights[slot]->data(),input,spec.kind,batch,spec.width,spec.rows,projection_workspace->data(),!reuse_input);
         check(cudaGetLastError());
     }
     void evaluate(const int *tokens,int batch,float *out) {
@@ -336,9 +360,9 @@ struct Model {
             check(cudaGetLastError());
             if(layer%4!=3) {
                 projection(qkv->floats(),base+5,normalized->floats(),batch);
-                projection(gate->floats(),base+6,normalized->floats(),batch);
-                projection(alpha->floats(),base+7,normalized->floats(),batch);
-                projection(beta->floats(),base+8,normalized->floats(),batch);
+                projection(gate->floats(),base+6,normalized->floats(),batch,true);
+                projection(alpha->floats(),base+7,normalized->floats(),batch,true);
+                projection(beta->floats(),base+8,normalized->floats(),batch,true);
                 k_delta(mixed->floats(),state[layer]->floats(),history[layer]->floats(),
                         qkv->floats(),gate->floats(),alpha->floats(),beta->floats(),
                         weights[base+9]->floats(),weights[base+10]->floats(),
@@ -347,8 +371,8 @@ struct Model {
                 projection(residual->floats(),base+13,mixed->floats(),batch);
             } else {
                 projection(gate->floats(),base+14,normalized->floats(),batch);
-                projection(key->floats(),base+15,normalized->floats(),batch);
-                projection(value->floats(),base+16,normalized->floats(),batch);
+                projection(key->floats(),base+15,normalized->floats(),batch,true);
+                projection(value->floats(),base+16,normalized->floats(),batch,true);
                 k_attention(mixed->floats(),state[layer]->data(),history[layer]->data(),
                             query->floats(),attention_gate->floats(),gate->floats(),
                             key->floats(),value->floats(),weights[base+17]->floats(),
@@ -361,7 +385,7 @@ struct Model {
             k_norm(normalized->floats(),x->floats(),weights[base+1]->floats(),batch,E,epsilon);
             check(cudaGetLastError());
             projection(ffn_gate->floats(),base+2,normalized->floats(),batch);
-            projection(ffn_up->floats(),base+3,normalized->floats(),batch);
+            projection(ffn_up->floats(),base+3,normalized->floats(),batch,true);
             k_swiglu(ffn_gate->floats(),ffn_gate->floats(),ffn_up->floats(),batch*F);
             check(cudaGetLastError());
             projection(residual->floats(),base+4,ffn_gate->floats(),batch);

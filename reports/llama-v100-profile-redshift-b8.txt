@@ -1,0 +1,23 @@
+Generating SQLite file profile-redshift-b8.sqlite from profile-redshift-b8.nsys-rep
+Processing [profile-redshift-b8.sqlite] with [/opt/nvidia/nsight-systems/2025.1.3/host-linux-x64/reports/cuda_gpu_kern_sum.py]... 
+Time (%),Total Time (ns),Instances,Avg (ns),Med (ns),Min (ns),Max (ns),StdDev (ns),Name
+53.9,310606919,576,539248.1,502398.0,477887,633917,63172.6,"void qv::q4<(unsigned int)8>(float *, const unsigned char *, const float *, unsigned int, unsigned int, unsigned int)"
+35.4,204268518,864,236421.9,268831.0,80032,537150,139631.9,"void qv::q8<(int)8>(float *, const unsigned char *, const float *, int, int, int)"
+8.2,47226603,51,926011.8,284319.0,279327,11211476,2592904.4,"void qv::q6<(unsigned int)8>(float *, const char *, const float *, unsigned int, unsigned int, unsigned int, unsigned long)"
+0.9,5449876,144,37846.4,37824.0,37119,38592,329.0,"void qv::gdn_scan<(unsigned int)4, (unsigned int)128>(float *, float *, const float *, const float *, const float *, unsigned int, unsigned int, unsigned int, float *, unsigned int, float *, unsigned int)"
+0.7,3809065,387,9842.5,9856.0,9279,10432,248.3,"qv::norm(float *, const float *, const float *, int, float)"
+0.2,1399261,144,9717.1,9695.5,9216,10496,236.2,"qv::conv(float *, float *, const float *, unsigned int, unsigned int, unsigned int, bool, float *, unsigned int, float *, unsigned int)"
+0.2,999868,384,2603.8,2592.0,2368,3328,181.6,"qv::add(float *, const float *, int)"
+0.1,772125,192,4021.5,4000.0,3712,4480,141.9,"qv::swiglu(float *, const float *, const float *, int)"
+0.1,645532,144,4482.9,4480.0,4128,5024,179.1,"qv::delta_out(float *, const float *, const float *, int, int, float)"
+0.1,541952,144,3763.6,3744.0,3712,4096,61.6,"qv::gdn_prep(float *, float *, float *, const float *, const float *, unsigned int, unsigned int, unsigned int)"
+0.1,414848,48,8642.7,8608.0,8320,9216,228.0,"qv::attention(float *, const float *, const float *, const __half *, const __half *, int)"
+0.0,196223,48,4088.0,4064.0,3744,4800,196.1,"qv::attn_prepare(float *, float *, __half *, __half *, const float *, const float *, const float *, const float *, const float *, int, float)"
+0.0,7232,3,2410.7,2496.0,2112,2624,266.5,"qv::embed(float *, const unsigned char *, const int *)"
+
+Processing [profile-redshift-b8.sqlite] with [/opt/nvidia/nsight-systems/2025.1.3/host-linux-x64/reports/cuda_gpu_mem_time_sum.py]... 
+Time (%),Total Time (ns),Count,Avg (ns),Med (ns),Min (ns),Max (ns),StdDev (ns),Operation
+56.6,2412822,3,804274.0,803868.0,801117,807837,3378.3,[CUDA memcpy Device-to-Host]
+43.3,1843992,384,4802.1,2304.0,1600,10144,3505.1,[CUDA memcpy Device-to-Device]
+0.1,2432,3,810.7,704.0,672,1056,213.1,[CUDA memcpy Host-to-Device]
+

@@ -14,6 +14,10 @@ extern "C" {
 const char *qv_error(void);
 int qv_test_mm(float *out, const void *weights, const float *x,
                int kind, int batch, int width, int rows);
+/* DP4A path: Q8 activation blocks, FP32 scale/sum and accumulation.
+ * Compare with qv_test_mm for the original FP32-activation reference. */
+int qv_test_mm_fast(float *out, const void *weights, const float *x,
+               int kind, int batch, int width, int rows);
 int qv_test_norm(float *out, const float *x, const float *weights,
                  int batch, int width, float epsilon);
 
@@ -42,7 +46,8 @@ int qv_test_attention(float *out, void *key_cache, void *value_cache,
                       int batch, int position, float epsilon);
 
 /* Model ABI. One handle is single-threaded. Upload each validated manifest
- * slot once, before evaluating. Weights remain quantized on the GPU.
+ * slot once, before evaluating. Quantized weights are repacked on upload;
+ * projections use Q8 activations and FP32 accumulation.
  * context: 1..2048, evaluate: 1..8 token IDs, out: [batch,248320] floats.
  * A checkpoint stores all recurrent state and the valid KV prefix. Restore
  * can be repeated; reset invalidates it. No implicit speculative acceptance. */

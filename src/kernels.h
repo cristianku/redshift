@@ -2,6 +2,12 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 void k_mm(float*,const void*,const float*,int,int,int,int);
+// Packed projections: upload conversion and caller-owned reusable workspace.
+// Split-K partials are reduced in a fixed order, for all candidate counts.
+size_t k_mm_workspace_bytes(int,int,int);
+size_t k_mm_weight_bytes(int,int,int);
+void k_mm_pack_weights(void*,const void*,int,int,int);
+void k_mm_packed(float*,const void*,const float*,int,int,int,int,void*,bool quantize_input=true);
 void k_norm(float*,const float*,const float*,int,int,float);
 void k_embed(float*,const void*,const int*,int);
 void k_add(float*,const float*,int);

@@ -71,12 +71,13 @@ class CUDATests(unittest.TestCase):
 
     def test_rejects_invalid_arguments_before_accessing_buffers(self):
         value = floats([1.])
-        for kind, batch, width, rows in ((0, 1, 256, 1), (8, 0, 32, 1),
-                                         (12, 9, 256, 1), (14, 1, 255, 1),
-                                         (8, 1, 32, 0)):
-            self.assertEqual(self.lib.qv_test_mm(value, value, value, kind, batch, width, rows), -1)
-            self.assertTrue(self.lib.qv_error())
-        self.assertEqual(self.lib.qv_test_mm(None, value, value, 8, 1, 32, 1), -1)
+        for projection in (self.lib.qv_test_mm, self.lib.qv_test_mm_fast):
+            for kind, batch, width, rows in ((0, 1, 256, 1), (8, 0, 32, 1),
+                                             (12, 9, 256, 1), (14, 1, 255, 1),
+                                             (8, 1, 32, 0)):
+                self.assertEqual(projection(value, value, value, kind, batch, width, rows), -1)
+                self.assertTrue(self.lib.qv_error())
+            self.assertEqual(projection(None, value, value, 8, 1, 32, 1), -1)
         for epsilon in (0., -1., math.nan, math.inf):
             self.assertEqual(self.lib.qv_test_norm(value, value, value, 1, 1, epsilon), -1)
         # These dimensions must be rejected before any caller memory is read.
@@ -100,6 +101,54 @@ class CUDATests(unittest.TestCase):
                             ref = sum(a * x[t * 512 + i] for i, a in enumerate(w))
                             self.assertTrue(math.isfinite(out[t * 7 + row]))
                             self.assertAlmostEqual(out[t * 7 + row], ref, delta=2e-5 * (1 + abs(ref)))
+
+    def test_dp4a_matches_independent_quantized_reference(self):
+        # Check arithmetic separately from the lossy input representation. Zero
+        # blocks and an outlier exercise scaling; short Q8 widths exercise tails.
+        for kind in (8, 12, 14):
+            for width in ((32, 96, 512, 768) if kind == 8 else (256, 512, 768)):
+                rows = 35 if width == 768 else 7
+                data, weights = quantized(kind, width, rows)
+                packed = ct.create_string_buffer(data)
+                for batch in range(1, 9):
+                    with self.subTest(kind=kind, width=width, batch=batch):
+                        x = floats([.13 * math.sin(i * .07) for i in range(batch * width)])
+                        for i in range(32):
+                            x[i] = 0.
+                        if width > 32:
+                            x[37] = -3.25
+                        qx = []
+                        for start in range(0, len(x), 32):
+                            values = x[start:start+32]
+                            scale = ct.c_float(max(map(abs, values)) / 127).value
+                            for value in values:
+                                ratio = ct.c_float(value / scale).value if scale else 0.
+                                rounded = math.copysign(math.floor(abs(ratio) + .5), ratio)
+                                qx.append(scale * rounded)
+                        out = floats([0.] * (batch * rows))
+                        self.check(self.lib.qv_test_mm_fast(out, packed, x, kind, batch, width, rows))
+                        for t in range(batch):
+                            for row, w in enumerate(weights):
+                                offsets = [0.] * width
+                                if kind == 12:
+                                    for block in range(width // 256):
+                                        pos = (row * (width // 256) + block) * 144
+                                        minimum = struct.unpack_from('<e', data, pos+2)[0]
+                                        scales = data[pos+4:pos+16]
+                                        for group in range(8):
+                                            z = scales[group+4] & 63 if group < 4 else ((scales[group+4] >> 4) | ((scales[group] >> 6) << 4))
+                                            offsets[block*256+group*32:block*256+(group+1)*32] = [minimum*z] * 32
+                                reference = sum((a+offsets[i])*qx[t*width+i] - offsets[i]*x[t*width+i]
+                                                for i,a in enumerate(w))
+                                self.assertAlmostEqual(out[t*rows+row], reference,
+                                                       delta=3e-5*(1+abs(reference)))
+                                original = sum(a*x[t*width+i] for i,a in enumerate(w))
+                                # The exact per-element quantization-error bound,
+                                # plus the same FP32 accumulation allowance.
+                                bound = sum(abs((a+offsets[i])*(qx[t*width+i]-x[t*width+i]))
+                                            for i,a in enumerate(w))
+                                self.assertLessEqual(abs(out[t*rows+row]-original),
+                                                     bound+3e-5*(1+abs(reference)))
 
     def test_weighted_rms_on_each_row(self):
         batch, width = 3, 5120

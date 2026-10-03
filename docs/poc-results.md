@@ -1,5 +1,9 @@
 # Redshift numeric proof of concept — 2026-10-03
 
+This report records the **initial numeric PoC**. See the subsequent
+[projection optimization report](kernel-optimization.md) for the current
+125.8 tokens/s eight-candidate result, precision tradeoffs, and fresh llama.cpp timings.
+
 The independent runtime now loads the existing Qwen3.8-27B Q4_K_M GGUF,
 executes all 64 layers on a Tesla V100 32 GB, and returns all 248,320 logits
 for each of 1, 2, 4 or 8 supplied token IDs. GPU weights stay quantized;
@@ -60,8 +64,11 @@ guarantee for every possible input.
 **These are verification-capacity measurements, not generated or accepted
 speculative tokens/s.** Inputs are synthetic token IDs. There is no tokenizer,
 proposal model, acceptance loop, chat interface or text-quality validation yet.
-Full-model equivalence against an external engine remains unverified. The
-100 generated tokens/s research target has not been demonstrated.
+A subsequent [comparison with llama.cpp](llama-comparison.md) measures both
+performance and all logits: llama.cpp is faster in every group; argmax agrees
+on 16/16 tested rows, with nonzero logit differences. General numerical
+equivalence remains unverified. The 100 generated tokens/s research target
+has not been demonstrated.
 
 The graph follows the existing explicit `qwen35` GGUF schema. Its gated
 DeltaNet head broadcasting agrees with the GGUF graph in

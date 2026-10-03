@@ -2,7 +2,7 @@ NVCC ?= /usr/local/cuda/bin/nvcc
 JOBS ?= 20
 NVFLAGS = -O3 -std=c++17 -arch=sm_70 --split-compile $(JOBS) -Xcompiler=-fPIC,-Wall,-Wextra -lineinfo
 
-.PHONY: all test test-cuda memcheck racecheck
+.PHONY: all test test-cuda memcheck racecheck bench-mm
 all: build/libqvelox.so
 build/%.o: src/%.cu src/kernels.h src/runtime.h
 	@mkdir -p build
@@ -17,3 +17,8 @@ memcheck: all
 	QVELOX_CUDA=1 /usr/local/cuda/bin/compute-sanitizer --tool memcheck --error-exitcode 1 python3 -m unittest discover -s tests -p test_cuda.py -v
 racecheck: all
 	QVELOX_CUDA=1 /usr/local/cuda/bin/compute-sanitizer --tool racecheck --error-exitcode 1 python3 -m unittest discover -s tests -p test_cuda.py -v
+
+build/bench-mm: tools/bench_mm.cu build/kernels.o src/kernels.h
+	$(NVCC) $(NVFLAGS) -I src $< build/kernels.o -o $@
+bench-mm: build/bench-mm
+	build/bench-mm
