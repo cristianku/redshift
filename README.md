@@ -86,6 +86,14 @@ into VS Code's `chatLanguageModels.json`. Then select
 **Redshift Qwen3.8 27B (V100)** in the chat model picker. No API key is required
 by this endpoint. [Complete endpoint details](docs/endpoint.md).
 
+The local configuration exposes **Thinking Effort** with `low`, `medium`, and
+`xhigh`, matching the levels in the Qwen chat template. Copilot sends the selected
+level as `reasoning_effort`; Redshift enables thinking and passes it to that
+template. Requests without `reasoning_effort` keep thinking disabled unless
+`enable_thinking: true` is supplied (which defaults to `xhigh`).
+This requires the updated server and model configuration; preparing these files
+locally does not update an existing server or VS Code installation.
+
 The current configured server is `redshift-v100` (`10.10.10.55:8081`). The former
 PoC on `llama-v100` was removed. If Copilot reports that static instructions/tools
 exceed the context budget, use fewer tools or Ask mode; the runtime's actual

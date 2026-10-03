@@ -121,10 +121,16 @@ class Engine:
         if (not isinstance(stop, list) or len(stop) > 4
                 or any(not isinstance(s, str) or not s or len(s) > 1024 for s in stop)):
             raise APIError('stop must be a string or up to four nonempty strings of at most 1024 characters')
-        thinking = data.get('enable_thinking', False)
+        effort = data.get('reasoning_effort', 'xhigh')
+        if not isinstance(effort, str) or effort not in ('low', 'medium', 'xhigh'):
+            raise APIError('reasoning_effort must be low, medium, or xhigh')
+        thinking = data.get('enable_thinking', 'reasoning_effort' in data)
+        if 'reasoning_effort' in data and not thinking:
+            raise APIError('reasoning_effort requires enable_thinking=true or omitted')
         try:
             prompt = self.codec.encode(self.codec.render(data.get('messages'), tools=tools,
-                                                       enable_thinking=thinking))
+                                                       enable_thinking=thinking,
+                                                       reasoning_effort=effort))
         except (ValueError, TypeError, KeyError) as error:
             raise APIError(str(error)) from error
         if not prompt:

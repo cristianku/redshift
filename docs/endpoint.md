@@ -56,7 +56,22 @@ required by this LAN endpoint.
 The configuration declares the actual 139,264-token window, 122,880 input tokens
 and 16,384 output tokens. The server counts the final rendered prompt including
 chat-template and tool overhead and rejects requests that exceed that capacity.
-Vision and thinking are disabled in this profile.
+Vision is disabled. The profile exposes **Thinking Effort** with `low`, `medium`,
+and `xhigh` through `supportsReasoningEffort` and `reasoningEffortFormat` set to
+`chat-completions`. Copilot sends a top-level `reasoning_effort` string; Redshift
+enables thinking and forwards the selected level to the model's existing Qwen
+chat template. These are prompt instructions from the template, not separate
+token budgets or a guaranteed generation length.
+
+Without `reasoning_effort`, thinking stays disabled by default. The existing
+`enable_thinking: true` option still uses the template's `xhigh` default.
+Unsupported levels or types, including `null`, return HTTP 400 before inference.
+Combining a level with `enable_thinking: false` also returns HTTP 400, so an
+explicit choice is never silently ignored.
+
+The updated server and Copilot model configuration must both be installed
+before the selector can control generation. Local preparation does not modify
+the running endpoint or VS Code's `chatLanguageModels.json`.
 `temperature: 0` uses the fast GPU argmax path; sampling is available but slower.
 This config selects the chat/agent model, not the inline-completion engine.
 

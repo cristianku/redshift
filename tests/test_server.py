@@ -221,7 +221,8 @@ class ServerTests(unittest.TestCase):
                 else:
                     self.assertIn(instruction, prompt)
                 self.runtime.prompt = prepared.prompt
-                self.runtime.output = list(b'check</think>\n\nHello') + [256]
+                self.runtime.output = (self.engine.codec.encode('check</think>Hello')
+                                       + [min(self.engine.codec.eos_ids)])
                 status, body = self.request(payload)
                 self.assertEqual(status, 200)
                 self.assertEqual(body['choices'][0]['message'], {

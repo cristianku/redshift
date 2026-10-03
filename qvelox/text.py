@@ -131,7 +131,7 @@ class TextCodec:
             return token.encode('utf-8')
         return bytes(self._byte_values[c] for c in token)
 
-    def render(self, messages, tools=None, enable_thinking=False):
+    def render(self, messages, tools=None, enable_thinking=False, reasoning_effort='xhigh'):
         if not isinstance(messages, list) or not messages:
             raise ValueError('messages must be a nonempty array')
         _tool_schemas(tools)
@@ -172,7 +172,8 @@ class TextCodec:
                 normalized.append(item)
         try:
             return self._template.render(messages=normalized, tools=tools,
-                                         enable_thinking=enable_thinking, add_generation_prompt=True)
+                                         enable_thinking=enable_thinking,
+                                         reasoning_effort=reasoning_effort, add_generation_prompt=True)
         except Exception as error:
             raise ValueError(f'cannot render chat template: {error}') from error
 

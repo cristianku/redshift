@@ -270,7 +270,9 @@ def copilot_config(options):
     return [{'name': 'Redshift V100', 'vendor': 'customendpoint', 'apiType': 'chat-completions',
              'models': [{'id': MODEL_ID, 'name': 'Redshift Qwen3.8 27B (V100)',
                          'url': f'http://{options.public_host}:{options.port}/v1/chat/completions',
-                         'toolCalling': True, 'vision': False, 'thinking': False,
+                         'toolCalling': True, 'vision': False, 'thinking': True,
+                         'supportsReasoningEffort': ['low', 'medium', 'xhigh'],
+                         'reasoningEffortFormat': 'chat-completions',
                          'contextWindow': options.context,
                          'maxInputTokens': options.context - maximum,
                          'maxOutputTokens': maximum, 'modelOptions': {'temperature': 0}}]}]
