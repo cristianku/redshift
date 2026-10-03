@@ -15,7 +15,9 @@ int main(void) {
     const char *(*error)(void) = qv_error;
     int (*mm)(float *, const void *, const float *, int, int, int, int) = qv_test_mm;
     int (*norm)(float *, const float *, const float *, int, int, float) = qv_test_norm;
-    return error == 0 || mm == 0 || norm == 0;
+    int (*verify)(void *, const int *, int, float *) = qv_verify;
+    int (*commit)(void *, int) = qv_commit;
+    return error == 0 || mm == 0 || norm == 0 || verify == 0 || commit == 0;
 }
 '''
         with tempfile.TemporaryDirectory() as directory:

@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-10-03T18:21:07.087520+00:00",
+  "endpoint": "http://10.10.10.55:8081",
+  "context": 139264,
+  "maxInputTokens": 122880,
+  "maxOutputTokens": 16384,
+  "release": "/opt/redshift/releases/context139264-20261003",
+  "tests": {
+    "run": 87,
+    "passed": 86,
+    "skipped": 1
+  },
+  "attention_boundary_position": 139263,
+  "inference": "REDSHIFT_OK",
+  "gpu_memory_mib": {
+    "total": 32768,
+    "used": 31818,
+    "free": 677
+  },
+  "ide_agent_verification": "pending",
+  "source_sha256": {
+    "src/runtime.cu": "278fce7581d3a03701e4c6067f101a180a95a9e6defbbfb3e1ee692a51d7b7c2",
+    "src/runtime.h": "3ae86e938ebf9c53438ebd4958b0a826fb4dcbcd1e8e32c1f09950663da5b49c",
+    "qvelox/runtime.py": "dd1cc98de5e527ef22b78c19d8070c246953f5569fe3f3c8f5c1101b997e36bf",
+    "qvelox/server.py": "3f03595df2d31beb21e79c569303f2e4a8a3d6a1f1d367d9c75c61dc9f978813",
+    "scripts/install_redshift.py": "3461517b50c3a87c80b72db144a345bd1dd8d9fe67ffd6ec277699aa64a9442b",
+    "tests/test_cuda.py": "9f58dd2eda090cf928a2532a7335d5a7fcf483f508faf93933d104e85befcf65",
+    "tests/test_model.py": "03961ea160552de79535270290bf5a741ddf8204ca05958c802295a524274616"
+  }
+}

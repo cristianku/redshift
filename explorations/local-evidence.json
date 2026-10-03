@@ -1,0 +1,289 @@
+{
+  "collected_at": "2026-10-03T19:12:34.783234+02:00",
+  "scope": "Read-only local source/report inspection; no SSH, CUDA build or GPU benchmark",
+  "ds4": {
+    "commit": "63383b7c3f8347a0e3be2eca4d580b3f3d98244c",
+    "branch": "main",
+    "source_sha256": {
+      "Makefile": "5596981ea737dbf00a4caa1847984d05098cdc1fcfbbe4f2a9a703375e9fddc8",
+      "ds4_cuda.cu": "c2184bb477b8589e329f33e4a7be301c1a287e4c1ba382d941377bef52b97230",
+      "ds4_qwen4_cuda.cuh": "8e25ecc06f1ce846e729317edb4e030253343defc75f59ef82cab02c5700b653",
+      "cuda/mmq/mmq.cuh": "ce8fa4abea5d51742ba4e169808f75e0e3d07e1b2b2aa292fc46a4853c635be6",
+      "cuda/mmq/mma.cuh": "c7e0f3332da182e203b4b953f9fa8535ffca3767d2b7d4d7dbf7ce486262d1af",
+      "cuda/mmq/common.cuh": "ae55a86b4b7b3dd9a2478cfa82df4dbebf61f496f12eb61a5844d79a6a06e079",
+      "cuda/mmq/ds4_mmq.cu": "5c414b7840bbaa564df3c78f5ced73816cc280718f2a0189a4cbdb7abd545acd",
+      "cuda/mmq/VENDOR.md": "9623da129f8b4f4199cbd46fa2694b92f050d154a16c863734a185f84bcc6c45"
+    }
+  },
+  "redshift": {
+    "commit": "5a60a08d290e670b1039afba7bdde60cbece468d",
+    "branch": "main",
+    "prior_reports": {
+      "llama-v100-q16-prefix16.json": {
+        "report_sha256": "6d82b4f4251dd16a503186a9e6bcb2f339ac5091da9bc118324b112d5788dc3c",
+        "timing_scope": "GPU checkpoint restore + all-row forward + copy every vocabulary logit to host",
+        "timing_difference": "Redshift uses Python/ctypes output allocation and row copies; llama reference uses C++ vector allocation/copies",
+        "library_sha256": "4103bf510d4da412f4db11f8570812d009635a085d32f27cab29fbea44daf320",
+        "summary": {
+          "1": {
+            "llama": {
+              "total_seconds": 0.035947322,
+              "evaluate_seconds": 0.034149848,
+              "verified_tokens_per_second": 27.81848394714911
+            },
+            "redshift": {
+              "total_seconds": 0.039507269000750966,
+              "evaluate_seconds": 0.03878260499914177,
+              "verified_tokens_per_second": 25.311797684142423
+            },
+            "redshift_speedup": 0.9098913417507218
+          },
+          "2": {
+            "llama": {
+              "total_seconds": 0.038377528,
+              "evaluate_seconds": 0.036683607,
+              "verified_tokens_per_second": 52.11383078138852
+            },
+            "redshift": {
+              "total_seconds": 0.0415581869892776,
+              "evaluate_seconds": 0.040849523997167125,
+              "verified_tokens_per_second": 48.12529479488647
+            },
+            "redshift_speedup": 0.9234649242495049
+          },
+          "4": {
+            "llama": {
+              "total_seconds": 0.047193983,
+              "evaluate_seconds": 0.045531961,
+              "verified_tokens_per_second": 84.75656737851517
+            },
+            "redshift": {
+              "total_seconds": 0.046245204997831024,
+              "evaluate_seconds": 0.04553822200978175,
+              "verified_tokens_per_second": 86.49545396517556
+            },
+            "redshift_speedup": 1.0205162460024446
+          },
+          "8": {
+            "llama": {
+              "total_seconds": 0.061664093,
+              "evaluate_seconds": 0.059969811,
+              "verified_tokens_per_second": 129.7351442435065
+            },
+            "redshift": {
+              "total_seconds": 0.056856522991438396,
+              "evaluate_seconds": 0.05614895999315195,
+              "verified_tokens_per_second": 140.70505157701362
+            },
+            "redshift_speedup": 1.0845561732518456
+          }
+        },
+        "source_comparisons": {
+          "qvelox/__init__.py": {
+            "report_sha256": "bbf02485f6d418c11430f54ca828f981acd742890492de0b3be313a1219fc0d8",
+            "current_sha256": "bbf02485f6d418c11430f54ca828f981acd742890492de0b3be313a1219fc0d8",
+            "matches": true
+          },
+          "qvelox/__main__.py": {
+            "report_sha256": "296682ef02607006c020d9d7500cfbb12ab4df6bd2b37c2e3fb18bd49d6ccaab",
+            "current_sha256": "296682ef02607006c020d9d7500cfbb12ab4df6bd2b37c2e3fb18bd49d6ccaab",
+            "matches": true
+          },
+          "qvelox/gguf.py": {
+            "report_sha256": "137ddf0d16f8f9625455c0f0691c0c2c51d1c9466d73a8eb88a1b088e91d4204",
+            "current_sha256": "137ddf0d16f8f9625455c0f0691c0c2c51d1c9466d73a8eb88a1b088e91d4204",
+            "matches": true
+          },
+          "qvelox/model.py": {
+            "report_sha256": "9cb77ee54653d6d75c76e5e834b2be38f621506849284d0e97154784ddc7a18a",
+            "current_sha256": "9cb77ee54653d6d75c76e5e834b2be38f621506849284d0e97154784ddc7a18a",
+            "matches": true
+          },
+          "qvelox/runtime.py": {
+            "report_sha256": "5b534b99e3f0a0ed4cb166daea1c8f84e0c1a2ffe930b96e130ae0dc48baf0fc",
+            "current_sha256": "6fae44945507060ce20049a70342860c11194f94389f012ef04251335a49238f",
+            "matches": false
+          },
+          "src/kernels.cu": {
+            "report_sha256": "24ca1855767fde20d7df7507ff990f472645fabd65031e537db23fa5808f8ba5",
+            "current_sha256": "1ebd304db8c2ce9c9cdd31a8435f6f68af749ce6fd3908d1b9892cfbd35cdfec",
+            "matches": false
+          },
+          "src/kernels.h": {
+            "report_sha256": "45f2fd7d6c75f758e4868be4debacb77fa36149cd93db7e138900d7c2f450053",
+            "current_sha256": "45f2fd7d6c75f758e4868be4debacb77fa36149cd93db7e138900d7c2f450053",
+            "matches": true
+          },
+          "src/runtime.cu": {
+            "report_sha256": "2d81ec3ca4c191047df3d6220d4eefe3dace52b4279a4862f25235193ce653a2",
+            "current_sha256": "a12551f955408950d788b30fc72b7d08f5ee9b0e3a4d4fbaac6c243fd7609f50",
+            "matches": false
+          },
+          "src/runtime.h": {
+            "report_sha256": "e8575684f892618d4ece74118efd3ddfea8c70d087d060adb23f7d49c1b1b52a",
+            "current_sha256": "cebc5378a2b46548c936953119c7dd0f780a18b1c611041a98b31562c2db5732",
+            "matches": false
+          },
+          "tools/bench_mm.cu": {
+            "report_sha256": "4654f4f771c14c831718ad7fd90bd386f34ec7b88024b5a270f71bea731356da",
+            "current_sha256": "4654f4f771c14c831718ad7fd90bd386f34ec7b88024b5a270f71bea731356da",
+            "matches": true
+          },
+          "tools/build_llama_reference.sh": {
+            "report_sha256": "8604697c8eb975e539854efc9286bae700e7486fd823ec525c02060d5a79951d",
+            "current_sha256": "8604697c8eb975e539854efc9286bae700e7486fd823ec525c02060d5a79951d",
+            "matches": true
+          },
+          "tools/compare_engines.py": {
+            "report_sha256": "27b77516ca6c8cf76aa4f48905371403f6e3db59f6d91f73cafa503c6420c050",
+            "current_sha256": "27b77516ca6c8cf76aa4f48905371403f6e3db59f6d91f73cafa503c6420c050",
+            "matches": true
+          },
+          "tools/compare_precision.py": {
+            "report_sha256": "05130bacfe5df0209d5c99c8a3ab14b2a53256a21649ba6f1b84ccc8629f97fb",
+            "current_sha256": "05130bacfe5df0209d5c99c8a3ab14b2a53256a21649ba6f1b84ccc8629f97fb",
+            "matches": true
+          },
+          "tools/llama_reference.cpp": {
+            "report_sha256": "c17f13599a4dee9c356702475b221868e7654868f8ecff70c5d97782c8d76c18",
+            "current_sha256": "c17f13599a4dee9c356702475b221868e7654868f8ecff70c5d97782c8d76c18",
+            "matches": true
+          }
+        }
+      },
+      "llama-v100-q16-prefix128.json": {
+        "report_sha256": "bb4fa0272db18e1cdec28d3e42f55b6cff789d240a35def42eea36975f65e069",
+        "timing_scope": "GPU checkpoint restore + all-row forward + copy every vocabulary logit to host",
+        "timing_difference": "Redshift uses Python/ctypes output allocation and row copies; llama reference uses C++ vector allocation/copies",
+        "library_sha256": "4103bf510d4da412f4db11f8570812d009635a085d32f27cab29fbea44daf320",
+        "summary": {
+          "1": {
+            "llama": {
+              "total_seconds": 0.035953072,
+              "evaluate_seconds": 0.034122968,
+              "verified_tokens_per_second": 27.81403491751692
+            },
+            "redshift": {
+              "total_seconds": 0.039848544998676516,
+              "evaluate_seconds": 0.03913342200394254,
+              "verified_tokens_per_second": 25.09501915397947
+            },
+            "redshift_speedup": 0.902243030484403
+          },
+          "2": {
+            "llama": {
+              "total_seconds": 0.038349267,
+              "evaluate_seconds": 0.036585234,
+              "verified_tokens_per_second": 52.152235399962144
+            },
+            "redshift": {
+              "total_seconds": 0.04199840599903837,
+              "evaluate_seconds": 0.04128229300840758,
+              "verified_tokens_per_second": 47.6208549449661
+            },
+            "redshift_speedup": 0.9131124405263875
+          },
+          "4": {
+            "llama": {
+              "total_seconds": 0.047279364,
+              "evaluate_seconds": 0.045491751,
+              "verified_tokens_per_second": 84.60350693380732
+            },
+            "redshift": {
+              "total_seconds": 0.04661829199176282,
+              "evaluate_seconds": 0.04590060899499804,
+              "verified_tokens_per_second": 85.80322935698238
+            },
+            "redshift_speedup": 1.0141805282860639
+          },
+          "8": {
+            "llama": {
+              "total_seconds": 0.061697105,
+              "evaluate_seconds": 0.059951222,
+              "verified_tokens_per_second": 129.6657274275673
+            },
+            "redshift": {
+              "total_seconds": 0.057093548006378114,
+              "evaluate_seconds": 0.056381554997642525,
+              "verified_tokens_per_second": 140.1209117202927
+            },
+            "redshift_speedup": 1.0806318253878286
+          }
+        },
+        "source_comparisons": {
+          "qvelox/__init__.py": {
+            "report_sha256": "bbf02485f6d418c11430f54ca828f981acd742890492de0b3be313a1219fc0d8",
+            "current_sha256": "bbf02485f6d418c11430f54ca828f981acd742890492de0b3be313a1219fc0d8",
+            "matches": true
+          },
+          "qvelox/__main__.py": {
+            "report_sha256": "296682ef02607006c020d9d7500cfbb12ab4df6bd2b37c2e3fb18bd49d6ccaab",
+            "current_sha256": "296682ef02607006c020d9d7500cfbb12ab4df6bd2b37c2e3fb18bd49d6ccaab",
+            "matches": true
+          },
+          "qvelox/gguf.py": {
+            "report_sha256": "137ddf0d16f8f9625455c0f0691c0c2c51d1c9466d73a8eb88a1b088e91d4204",
+            "current_sha256": "137ddf0d16f8f9625455c0f0691c0c2c51d1c9466d73a8eb88a1b088e91d4204",
+            "matches": true
+          },
+          "qvelox/model.py": {
+            "report_sha256": "9cb77ee54653d6d75c76e5e834b2be38f621506849284d0e97154784ddc7a18a",
+            "current_sha256": "9cb77ee54653d6d75c76e5e834b2be38f621506849284d0e97154784ddc7a18a",
+            "matches": true
+          },
+          "qvelox/runtime.py": {
+            "report_sha256": "5b534b99e3f0a0ed4cb166daea1c8f84e0c1a2ffe930b96e130ae0dc48baf0fc",
+            "current_sha256": "6fae44945507060ce20049a70342860c11194f94389f012ef04251335a49238f",
+            "matches": false
+          },
+          "src/kernels.cu": {
+            "report_sha256": "24ca1855767fde20d7df7507ff990f472645fabd65031e537db23fa5808f8ba5",
+            "current_sha256": "1ebd304db8c2ce9c9cdd31a8435f6f68af749ce6fd3908d1b9892cfbd35cdfec",
+            "matches": false
+          },
+          "src/kernels.h": {
+            "report_sha256": "45f2fd7d6c75f758e4868be4debacb77fa36149cd93db7e138900d7c2f450053",
+            "current_sha256": "45f2fd7d6c75f758e4868be4debacb77fa36149cd93db7e138900d7c2f450053",
+            "matches": true
+          },
+          "src/runtime.cu": {
+            "report_sha256": "2d81ec3ca4c191047df3d6220d4eefe3dace52b4279a4862f25235193ce653a2",
+            "current_sha256": "a12551f955408950d788b30fc72b7d08f5ee9b0e3a4d4fbaac6c243fd7609f50",
+            "matches": false
+          },
+          "src/runtime.h": {
+            "report_sha256": "e8575684f892618d4ece74118efd3ddfea8c70d087d060adb23f7d49c1b1b52a",
+            "current_sha256": "cebc5378a2b46548c936953119c7dd0f780a18b1c611041a98b31562c2db5732",
+            "matches": false
+          },
+          "tools/bench_mm.cu": {
+            "report_sha256": "4654f4f771c14c831718ad7fd90bd386f34ec7b88024b5a270f71bea731356da",
+            "current_sha256": "4654f4f771c14c831718ad7fd90bd386f34ec7b88024b5a270f71bea731356da",
+            "matches": true
+          },
+          "tools/build_llama_reference.sh": {
+            "report_sha256": "8604697c8eb975e539854efc9286bae700e7486fd823ec525c02060d5a79951d",
+            "current_sha256": "8604697c8eb975e539854efc9286bae700e7486fd823ec525c02060d5a79951d",
+            "matches": true
+          },
+          "tools/compare_engines.py": {
+            "report_sha256": "27b77516ca6c8cf76aa4f48905371403f6e3db59f6d91f73cafa503c6420c050",
+            "current_sha256": "27b77516ca6c8cf76aa4f48905371403f6e3db59f6d91f73cafa503c6420c050",
+            "matches": true
+          },
+          "tools/compare_precision.py": {
+            "report_sha256": "05130bacfe5df0209d5c99c8a3ab14b2a53256a21649ba6f1b84ccc8629f97fb",
+            "current_sha256": "05130bacfe5df0209d5c99c8a3ab14b2a53256a21649ba6f1b84ccc8629f97fb",
+            "matches": true
+          },
+          "tools/llama_reference.cpp": {
+            "report_sha256": "c17f13599a4dee9c356702475b221868e7654868f8ecff70c5d97782c8d76c18",
+            "current_sha256": "c17f13599a4dee9c356702475b221868e7654868f8ecff70c5d97782c8d76c18",
+            "matches": true
+          }
+        }
+      }
+    }
+  },
+  "interpretation": "Stored measurements belong to reported library/source hashes. Mismatching current source hashes prevent attributing those timings to the current checkout."
+}

@@ -1,4 +1,5 @@
-NVCC ?= /usr/local/cuda/bin/nvcc
+CUDA_DIR ?= /usr/local/cuda
+NVCC ?= $(CUDA_DIR)/bin/nvcc
 JOBS ?= 20
 NVFLAGS = -O3 -std=c++17 -arch=sm_70 --split-compile $(JOBS) -Xcompiler=-fPIC,-Wall,-Wextra -lineinfo
 
@@ -8,12 +9,12 @@ build/%.o: src/%.cu src/kernels.h src/runtime.h
 	@mkdir -p build
 	$(NVCC) $(NVFLAGS) -c $< -o $@
 build/libqvelox.so: build/kernels.o build/runtime.o
-	$(NVCC) -shared $^ -o $@ -Xlinker -rpath -Xlinker /usr/local/cuda/lib64
+	$(NVCC) -shared $^ -o $@ -Xlinker -rpath -Xlinker $(CUDA_DIR)/lib64
 build/runtime-reference.o: src/runtime.cu src/kernels.h src/runtime.h
 	@mkdir -p build
 	$(NVCC) $(NVFLAGS) -DQVELOX_REFERENCE_PROJECTIONS -c $< -o $@
 build/libqvelox-reference.so: build/kernels.o build/runtime-reference.o
-	$(NVCC) -shared $^ -o $@ -Xlinker -rpath -Xlinker /usr/local/cuda/lib64
+	$(NVCC) -shared $^ -o $@ -Xlinker -rpath -Xlinker $(CUDA_DIR)/lib64
 reference: build/libqvelox-reference.so
 test:
 	python3 -m unittest discover -s tests -v

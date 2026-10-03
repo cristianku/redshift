@@ -307,9 +307,9 @@ class AssistantParserTests(unittest.TestCase):
     def test_streaming_is_independent_of_every_character_boundary(self):
         text = 'Ciao 🙂 < 3<think>réfléchir</think>\n<tool_call><function=write>' \
                '<parameter=path>é.txt</parameter></function></tool_call><|im_end|>'
-        expected = parse_assistant(text, TOOLS)
+        expected = parse_assistant(text, TOOLS, call_id_prefix='call_same_response')
         for size in (1, 2, 3, 7, 13, len(text)):
-            parser = DeltaParser(TOOLS)
+            parser = DeltaParser(TOOLS, call_id_prefix='call_same_response')
             deltas = []
             for i in range(0, len(text), size):
                 deltas.extend(parser.feed(text[i:i + size]))
@@ -317,6 +317,48 @@ class AssistantParserTests(unittest.TestCase):
             with self.subTest(size=size):
                 self.assertEqual(collect(deltas), expected)
                 self.assertFalse(any('<tool_call>' in d.get('content', '') for d in deltas))
+
+    def test_tool_ids_are_unique_across_responses_and_stable_within_one(self):
+        text = '<tool_call><function=ping></function></tool_call>'
+        first = parse_assistant(text, TOOLS)
+        second = parse_assistant(text, TOOLS)
+        self.assertNotEqual(first['tool_calls'][0]['id'], second['tool_calls'][0]['id'])
+        parser = DeltaParser(TOOLS)
+        deltas = parser.feed(text) + parser.finish()
+        self.assertEqual(collect(deltas), parse_assistant(
+            text, TOOLS, call_id_prefix=parser.call_id_prefix))
+
+    def test_token_limit_discards_only_incomplete_tool_call(self):
+        partials = ['<tool_ca', '<tool_call>', '<tool_call><function=p',
+                    '<tool_call><function=ping>',
+                    '<tool_call><function=write><parameter=path>unfinished',
+                    '<tool_call><function=ping></function></tool_ca']
+        for partial in partials:
+            with self.subTest(partial=partial):
+                self.assertEqual(parse_assistant('Working.' + partial, TOOLS, truncated=True),
+                                 {'role': 'assistant', 'content': 'Working.'})
+                parser = DeltaParser(TOOLS)
+                deltas = []
+                for character in 'Working.' + partial:
+                    deltas.extend(parser.feed(character))
+                deltas.extend(parser.finish(truncated=True))
+                self.assertEqual(collect(deltas), {'role': 'assistant', 'content': 'Working.'})
+        complete = '<tool_call><function=ping></function></tool_call>'
+        self.assertEqual(parse_assistant(complete + partials[-1], TOOLS,
+                                        call_id_prefix='call_keep', truncated=True),
+                         parse_assistant(complete, TOOLS, call_id_prefix='call_keep'))
+
+    def test_token_limit_does_not_hide_malformed_or_unknown_tools(self):
+        malformed = ['<tool_call>garbage', '<tool_call><function=unknown',
+                     '<tool_call><function=unknown>', '<tool_call><function=ping>garbage',
+                     '<tool_call><function=ping></function>garbage',
+                     '<tool_call><function=write></function>',
+                     '<tool_call><function=write><parameter=bad>x',
+                     '<tool_call><function=write><parameter=count>true</parameter>',
+                     '<tool_call><function=ping></tool_call>']
+        for text in malformed:
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                parse_assistant(text, TOOLS, truncated=True)
 
     def test_regular_content_streams_immediately_and_partial_markers_wait(self):
         parser = DeltaParser(TOOLS)

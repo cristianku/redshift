@@ -82,7 +82,7 @@ class CUDATests(unittest.TestCase):
             self.assertEqual(self.lib.qv_test_norm(value, value, value, 1, 1, epsilon), -1)
         # These dimensions must be rejected before any caller memory is read.
         self.assertEqual(self.lib.qv_test_delta(*([value] * 11), 1, 1, 1, 64, 1e-6), -1)
-        self.assertEqual(self.lib.qv_test_attention(*([value] * 8), 8, 32761, 1e-6), -1)
+        self.assertEqual(self.lib.qv_test_attention(*([value] * 8), 8, 139257, 1e-6), -1)
         self.check(self.lib.qv_test_norm(value, value, value, 1, 1, 1e-6))
         self.assertEqual(self.lib.qv_error(), b'')
 
@@ -246,7 +246,7 @@ class CUDATests(unittest.TestCase):
         query = [0.]*64+[(i%4+1)*.03125 for i in range(192)]
         scale = 1/math.sqrt(sum(x*x for x in query)/256+1e-6)
         qsum = sum(query)*scale
-        for position, batch in ((2047,3), (32767,1)):
+        for position, batch in ((2047,3), (32767,1), (139263,1)):
             with self.subTest(position=position, batch=batch):
                 prefix_k = b''.join(key_rows[p%7] for p in range(position))
                 prefix_v = b''.join(value_rows[p%11] for p in range(position))

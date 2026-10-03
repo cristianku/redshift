@@ -1,0 +1,230 @@
+{
+  "date": "2026-10-03",
+  "gpu": "Tesla V100-PCIE-32GB",
+  "context_capacity": 32768,
+  "memory_used_mib": 27408,
+  "runtime_sha256": "fe876400a599676eaa317ad4e44e199b4ce8e94e23f333b55f0baf904af28cfa",
+  "source_sha256": {
+    "qvelox/server.py": "c2b0d7c5e96483aa3a2720aaf91118366dd34b2a4afa07b56f78c36a2d324ea4",
+    "qvelox/text.py": "f229738684bbf17f34f7a8d15e4403d2c3fee849be43b4fb2c82b1d7509f097e",
+    "qvelox/runtime.py": "6fae44945507060ce20049a70342860c11194f94389f012ef04251335a49238f"
+  },
+  "tests": {
+    "passed": 63,
+    "skipped": 0,
+    "elapsed_s": 40.97,
+    "memcheck_errors": 0,
+    "racecheck_errors": 0,
+    "racecheck_warnings": 0
+  },
+  "tokenizer_oracle": {
+    "cases": 10,
+    "tokens": 7899,
+    "exact_match": true
+  },
+  "smoke": [
+    {
+      "name": "json",
+      "elapsed_s": 0.3812312089939951,
+      "first_content_s": null,
+      "result": {
+        "id": "chatcmpl-463e601ea2b84fe5b0bdc68055a0a08d",
+        "object": "chat.completion",
+        "created": 1791047669,
+        "model": "redshift-qwen3.8-27b",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "42"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 29,
+          "completion_tokens": 3,
+          "total_tokens": 32
+        }
+      }
+    },
+    {
+      "name": "sse",
+      "elapsed_s": 0.3730795829978888,
+      "first_content_s": 0.2931117339976481,
+      "result": {
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "42"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 29,
+          "completion_tokens": 3,
+          "total_tokens": 32
+        }
+      }
+    },
+    {
+      "name": "tool_sse",
+      "elapsed_s": 3.180067348999728,
+      "first_content_s": 3.1438562769981218,
+      "result": {
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_bea0a209191a43fabf2af59eb284d40f_0",
+                  "type": "function",
+                  "function": {
+                    "name": "lookup_temperature",
+                    "arguments": "{\"city\": \"Zurigo\"}"
+                  }
+                }
+              ]
+            },
+            "finish_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 296,
+          "completion_tokens": 29,
+          "total_tokens": 325
+        }
+      }
+    },
+    {
+      "name": "tool_result_continuation",
+      "elapsed_s": 0.8559448519954458,
+      "first_content_s": null,
+      "result": {
+        "id": "chatcmpl-1e72bd3c8b1d49e8a91f602a08357dee",
+        "object": "chat.completion",
+        "created": 1791047673,
+        "model": "redshift-qwen3.8-27b",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "La temperatura attuale a Zurigo è di 12 °C."
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 355,
+          "completion_tokens": 15,
+          "total_tokens": 370
+        }
+      }
+    },
+    {
+      "name": "long_context",
+      "elapsed_s": 16.983762742995168,
+      "first_content_s": 16.888197542000853,
+      "result": {
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "42"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 2339,
+          "completion_tokens": 3,
+          "total_tokens": 2342
+        }
+      }
+    },
+    {
+      "name": "generation_speed",
+      "elapsed_s": 6.656162130995654,
+      "first_content_s": 0.3215785389984376,
+      "result": {
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "```python\ndef fibonacci_iterativo(n):\n    if n <= 0:\n        return 0\n    elif n == 1:\n        return 1\n    \n    a, b = 0, 1\n    for _ in range(2, n + 1):\n        a, b = b, a + b\n    return b\n```\n\nLa funzione inizia impostando i due valori base della sequenza, 0 e 1, che rappresentano i primi due numeri di Fibonacci. In un ciclo iterativo, aggiorna continuamente le variabili scambiando il valore precedente con la somma dei due numeri attuali, procedendo fino al numero richiesto. Infine, restituisce l'ultimo valore calcolato, che corrisponde all'n-esimo termine della sequenza."
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 33,
+          "completion_tokens": 164,
+          "total_tokens": 197
+        }
+      }
+    },
+    {
+      "name": "sampling",
+      "elapsed_s": 0.700334509005188,
+      "first_content_s": null,
+      "result": {
+        "id": "chatcmpl-39386600292e4591a76e2ad5ca913973",
+        "object": "chat.completion",
+        "created": 1791047698,
+        "model": "redshift-qwen3.8-27b",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "42"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 29,
+          "completion_tokens": 3,
+          "total_tokens": 32
+        }
+      }
+    },
+    {
+      "name": "context_overflow",
+      "status": 400,
+      "result": {
+        "error": {
+          "message": "prompt has 29 tokens and requested completion 32768; context capacity is 32768, leaving 32739 completion tokens",
+          "type": "context_length_exceeded",
+          "code": "context_length_exceeded"
+        }
+      }
+    }
+  ],
+  "measurement_host": "llama-v100",
+  "current_deployment": {
+    "host": "redshift-v100",
+    "address": "10.10.10.55:8081",
+    "service": "redshift.service",
+    "enabled_at_boot": true,
+    "installation": "offline, existing model and Python libraries reused",
+    "model_download_repeated": false,
+    "staged_tests": {
+      "run": 86,
+      "skipped": 14,
+      "failed": 0
+    },
+    "installer_tests": {
+      "run": 17,
+      "failed": 0
+    },
+    "copilot_context": 32768,
+    "copilot_agent_session_after_context_fix": "not verified"
+  }
+}

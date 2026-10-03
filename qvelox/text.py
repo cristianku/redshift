@@ -2,6 +2,7 @@
 import json
 import math
 import re
+import uuid
 
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from tokenizers import AddedToken, Regex, Tokenizer, decoders, models, pre_tokenizers
@@ -232,7 +233,7 @@ def _parameter_value(raw, schema):
     return value
 
 
-def _parse_tool(text, schemas, index):
+def _parse_tool(text, schemas, index, call_id_prefix):
     match = re.fullmatch(r'<tool_call>\s*<function=([^\s<>/=]+)>(.*?)</function>\s*</tool_call>',
                          text, re.DOTALL)
     if not match:
@@ -257,8 +258,70 @@ def _parse_tool(text, schemas, index):
         body = body[match.end():]
     if not _valid(arguments, schema):
         raise ValueError('function arguments do not match their declared schema')
-    return {'index': index, 'id': f'call_{index}', 'type': 'function',
+    return {'index': index, 'id': f'{call_id_prefix}_{index}', 'type': 'function',
             'function': {'name': name, 'arguments': json.dumps(arguments, ensure_ascii=False)}}
+
+
+def _validate_partial_tool(text, schemas):
+    """A length cutoff can discard a legal prefix, never a known-invalid call."""
+    if not schemas:
+        raise ValueError('tool call without declared functions')
+    body = text[len('<tool_call>'):].lstrip()
+    opening = '<function='
+    if opening.startswith(body):
+        return
+    if not body.startswith(opening):
+        raise ValueError('malformed tool call')
+    body = body[len(opening):]
+    end = body.find('>')
+    if end < 0:
+        if not any(name.startswith(body) for name in schemas):
+            raise ValueError('unknown function in truncated tool call')
+        return
+    name, body = body[:end], body[end + 1:]
+    if name not in schemas:
+        raise ValueError(f'unknown function: {name}')
+    schema = schemas[name]
+    properties = schema.get('properties', {})
+    arguments = {}
+    while True:
+        body = body.lstrip()
+        if not body:
+            return
+        closing = '</function>'
+        if closing.startswith(body) and len(body) < len(closing):
+            return
+        if body.startswith(closing):
+            if not _valid(arguments, schema):
+                raise ValueError('function arguments do not match their declared schema')
+            if not '</tool_call>'.startswith(body[len(closing):].lstrip()):
+                raise ValueError('malformed tool call closing tag')
+            return
+        opening = '<parameter='
+        if opening.startswith(body):
+            return
+        if not body.startswith(opening):
+            raise ValueError('malformed function parameter')
+        body = body[len(opening):]
+        end = body.find('>')
+        if end < 0:
+            if body and not re.fullmatch(r'[^\s<>/=]+', body):
+                raise ValueError('malformed function parameter name')
+            if schema.get('additionalProperties', True) is False:
+                if not any(key.startswith(body) and key not in arguments for key in properties):
+                    raise ValueError('unknown function parameter')
+            return
+        key, body = body[:end], body[end + 1:]
+        if not re.fullmatch(r'[^\s<>/=]+', key) or key in arguments:
+            raise ValueError('invalid or duplicate function parameter')
+        parameter_schema = properties.get(key, schema.get('additionalProperties', True))
+        if parameter_schema is False:
+            raise ValueError(f'unknown function parameter: {key}')
+        end = body.find('</parameter>')
+        if end < 0:
+            return
+        arguments[key] = _parameter_value(body[:end], parameter_schema)
+        body = body[end + len('</parameter>'):]
 
 
 # Prefixes let us reject malformed control tags before exposing them as content.
@@ -272,7 +335,8 @@ _MARKERS = {'<tool_call': '<tool_call>', '</tool_call': '</tool_call>',
 class DeltaParser:
     """Emit ordinary text promptly; buffer only unfinished protocol markers/calls."""
 
-    def __init__(self, tools=None):
+    def __init__(self, tools=None, *, call_id_prefix=None):
+        self.call_id_prefix = call_id_prefix or 'call_' + uuid.uuid4().hex
         self._schemas = _tool_schemas(tools)
         self._pending = ''
         self._mode = 'content'
@@ -295,7 +359,8 @@ class DeltaParser:
                 if end < 0:
                     break
                 end += len('</tool_call>')
-                call = _parse_tool(self._pending[:end], self._schemas, self._call_count)
+                call = _parse_tool(self._pending[:end], self._schemas, self._call_count,
+                                   self.call_id_prefix)
                 deltas.append({'tool_calls': [call]})
                 self._call_count += 1
                 self._pending = self._pending[end:]
@@ -336,8 +401,18 @@ class DeltaParser:
                 raise ValueError('unexpected assistant control marker')
         return deltas
 
-    def finish(self):
+    def finish(self, *, truncated=False):
         deltas = self.feed('')
+        if truncated and self._mode == 'tool':
+            _validate_partial_tool(self._pending, self._schemas)
+            self._pending = ''
+            self._mode = 'content'
+        if truncated and len(self._pending) > 1:
+            allowed = (['</think>'] if self._mode == 'reasoning_content' else
+                       ['<think>', '<|im_end|>', '<|endoftext|>'] +
+                       (['<tool_call>'] if self._schemas else []))
+            if any(marker.startswith(self._pending) for marker in allowed):
+                self._pending = ''
         if self._mode not in ('content', 'reasoning_content', 'done'):
             raise ValueError('truncated assistant control block')
         if self._pending:
@@ -349,9 +424,9 @@ class DeltaParser:
         return deltas
 
 
-def parse_assistant(text, tools=None):
-    parser = DeltaParser(tools)
-    deltas = parser.feed(text) + parser.finish()
+def parse_assistant(text, tools=None, *, call_id_prefix=None, truncated=False):
+    parser = DeltaParser(tools, call_id_prefix=call_id_prefix)
+    deltas = parser.feed(text) + parser.finish(truncated=truncated)
     message = {'role': 'assistant', 'content': None}
     for delta in deltas:
         for field in ('content', 'reasoning_content'):

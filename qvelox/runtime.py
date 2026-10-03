@@ -30,14 +30,16 @@ class Runtime:
         self._handle = ct.c_void_p()
         self.model = read_gguf(path)
         epsilon = validate_qwen27b(self.model)
-        if type(context) is not int or not 1 <= context <= 32768:
-            raise ValueError('context must be an integer in 1..32768')
+        if type(context) is not int or not 1 <= context <= 139264:
+            raise ValueError('context must be an integer in 1..139264')
         self.context = context
         self.lib = load_library(library)
         signatures = {
             'qv_create': [ct.POINTER(ct.c_void_p), ct.c_char_p, ct.c_int, ct.c_float],
             'qv_upload': [ct.c_void_p, ct.c_int, ct.c_uint64, ct.c_uint64],
             'qv_evaluate': [ct.c_void_p, ct.POINTER(ct.c_int), ct.c_int, ct.POINTER(ct.c_float)],
+            'qv_verify': [ct.c_void_p, ct.POINTER(ct.c_int), ct.c_int, ct.POINTER(ct.c_float)],
+            'qv_commit': [ct.c_void_p, ct.c_int],
             'qv_advance': [ct.c_void_p, ct.POINTER(ct.c_int), ct.c_int, ct.POINTER(ct.c_int)],
             'qv_position': [ct.c_void_p, ct.POINTER(ct.c_int)],
             'qv_reset': [ct.c_void_p], 'qv_checkpoint': [ct.c_void_p], 'qv_restore': [ct.c_void_p],
@@ -73,6 +75,19 @@ class Runtime:
         return result.value
 
     def evaluate(self, tokens):
+        return self._evaluate(tokens, self.lib.qv_evaluate)
+
+    def verify(self, tokens):
+        """Record a verification transaction; acceptance is chosen later by commit."""
+        return self._evaluate(tokens, self.lib.qv_verify)
+
+    def commit(self, accepted):
+        self._open()
+        if type(accepted) is not int or not 0 <= accepted <= 8:
+            raise ValueError('accepted must be an integer in 0..8')
+        self._check(self.lib.qv_commit(self._handle, accepted))
+
+    def _evaluate(self, tokens, function):
         from array import array
         self._open()
         tokens = list(tokens)
@@ -81,7 +96,7 @@ class Runtime:
         ids = (ct.c_int * len(tokens))(*tokens)
         output = array('f', [0.]) * (len(tokens) * 248320)
         pointer = (ct.c_float * len(output)).from_buffer(output)
-        self._check(self.lib.qv_evaluate(self._handle, ids, len(tokens), pointer))
+        self._check(function(self._handle, ids, len(tokens), pointer))
         return [output[i*248320:(i+1)*248320] for i in range(len(tokens))]
 
     def reset(self):

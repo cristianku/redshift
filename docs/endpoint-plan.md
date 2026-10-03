@@ -21,24 +21,24 @@ by this server. Default non-thinking greedy generation; document measured speed.
 
 ## Work and ownership
 
-- [ ] Text codec and protocol parsing: qvelox/text.py, tests/test_text.py.
+- [x] Text codec and protocol parsing: qvelox/text.py, tests/test_text.py.
   TextCodec(metadata): encode(text), decode(ids), render(messages, tools=None,
   enable_thinking=False); eos_ids. parse_assistant(text, tools=None) produces an
   OpenAI assistant message with content/tool_calls/reasoning_content.
   DeltaParser(tools=None): feed(text) and finish() return lists of OpenAI deltas.
   Tests cover Unicode/byte boundaries, official template, tools and malformed calls.
-- [ ] Server and orchestration: qvelox/server.py, tests/test_server.py.
+- [x] Server and orchestration: qvelox/server.py, tests/test_server.py.
   Uses Runtime(model,context), evaluate(token_ids), advance(token_ids)->argmax IDs,
   reset(), position and close(). Prefill in chunks <=8, reuse exact resident token
   prefix across continuations. Stream real generated tokens and serialize sessions.
   Tests use a small deterministic runtime seam for HTTP/SSE, overflow, busy,
   disconnects, tool-result turns and errors. No fake production model path.
-- [ ] CUDA/runtime: src/kernels.*, src/runtime.*, qvelox/runtime.py,
+- [x] CUDA/runtime: src/kernels.*, src/runtime.*, qvelox/runtime.py,
   tests/test_cuda.py, tests/test_model.py. Extend capacity to32768 using tiled
   attention and preserve <=2048 arithmetic as a regression path. Add advance()
   which runs the same graph but downloads only GPU argmax IDs. Tests compare it
   with all-logit evaluation and long-context attention with an independent oracle.
-- [ ] Integrate and verify: requirements-server.txt, documentation, smoke tools.
+- [x] Integrate and verify: requirements-server.txt, documentation, smoke tools.
   Compare tokenizer IDs to a vocabulary-only native reference; run CPU/full-model
   CUDA tests and sanitizer. Start a separate endpoint and exercise real text,
   streaming, tool call/result and continuation. Record startup/memory/speed.

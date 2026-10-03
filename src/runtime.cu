@@ -40,6 +40,7 @@ public:
     ~Buffer() { cudaFree(data_); }
     Buffer(const Buffer &) = delete;
     Buffer &operator=(const Buffer &) = delete;
+    size_t size() const { return size_; }
     void *data() { return data_; }
     float *floats() { return static_cast<float *>(data_); }
     void download(void *target) {
@@ -170,7 +171,7 @@ extern "C" int qv_test_attention(float *out, void *key_cache, void *value_cache,
     return call([&] {
         batch_size(batch);
         epsilon_value(epsilon);
-        require(position >= 0 && position <= 32768 - batch, "attention context exceeds 32768");
+        require(position >= 0 && position <= 139264 - batch, "attention context exceeds 139264");
         require(out && key_cache && value_cache && q_gate && key && value && q_norm && k_norm,
                 "null attention buffer");
         const size_t output_bytes = size_t(batch) * 24 * 256 * sizeof(float);
@@ -261,6 +262,8 @@ struct Model {
     std::array<Owned,SLOTS> weights;
     // For DeltaNet these are state/history; for attention they are K/V.
     std::array<Owned,L> state, history, saved_state, saved_history;
+    std::array<Owned,L> verify_state, verify_history, transitions;
+    int pending_batch=0, verify_position=0;
     Owned x, normalized, residual, qkv, gate, alpha, beta, mixed;
     Owned query, attention_gate, key, value, ffn_gate, ffn_up, logits, ids, projection_workspace;
 
@@ -282,8 +285,6 @@ struct Model {
         for(int layer=0;layer<L;layer++) {
             state[layer]=allocate(state_bytes(layer));
             history[layer]=allocate(history_bytes(layer));
-            saved_state[layer]=allocate(state_bytes(layer));
-            saved_history[layer]=allocate(history_bytes(layer));
         }
         reset();
     }
@@ -300,6 +301,7 @@ struct Model {
     void reset() {
         poisoned=true;
         saved=false;
+        pending_batch=0;
         for(int layer=0;layer<L;layer++) if(layer%4!=3) {
             check(cudaMemset(state[layer]->data(),0,state_bytes(layer)));
             check(cudaMemset(history[layer]->data(),0,history_bytes(layer)));
@@ -351,12 +353,25 @@ struct Model {
 #endif
         check(cudaGetLastError());
     }
-    void evaluate(const int *tokens,int batch,float *out,int *next=nullptr) {
+    void evaluate(const int *tokens,int batch,float *out,int *next=nullptr,bool recording=false) {
         ready();
+        require(!pending_batch, "commit or abort the pending verification first");
         batch_size(batch);
         require(tokens && (out || next), "null evaluation buffer");
         require(position<=context-batch, "evaluation exceeds context capacity");
         for(int i=0;i<batch;i++) require(tokens[i]>=0 && tokens[i]<V, "token ID outside vocabulary");
+        if(recording) {
+            // Independent of the public checkpoint. Only attention append rows
+            // change, so no KV prefix copy is necessary for this transaction.
+            for(int layer=0;layer<L;layer++) if(layer%4!=3) {
+                if(!verify_state[layer])verify_state[layer]=allocate(state_bytes(layer));
+                if(!verify_history[layer])verify_history[layer]=allocate(history_bytes(layer));
+                if(!transitions[layer])transitions[layer]=float_buffer(8*(2*C+2*LV));
+                check(cudaMemcpy(verify_state[layer]->data(),state[layer]->data(),state_bytes(layer),cudaMemcpyDeviceToDevice));
+                check(cudaMemcpy(verify_history[layer]->data(),history[layer]->data(),history_bytes(layer),cudaMemcpyDeviceToDevice));
+            }
+            verify_position=position;
+        }
         // Preflight failures above cannot mutate state. Later failures poison it.
         poisoned=true;
         check(cudaMemcpy(ids->data(),tokens,size_t(batch)*sizeof(int),cudaMemcpyHostToDevice));
@@ -371,10 +386,13 @@ struct Model {
                 projection(gate->floats(),base+6,normalized->floats(),batch,true);
                 projection(alpha->floats(),base+7,normalized->floats(),batch,true);
                 projection(beta->floats(),base+8,normalized->floats(),batch,true);
+                float *trace=recording ? transitions[layer]->floats() : nullptr;
+                if(trace)check(cudaMemcpyAsync(trace,qkv->data(),size_t(batch)*C*sizeof(float),cudaMemcpyDeviceToDevice));
                 k_delta(mixed->floats(),state[layer]->floats(),history[layer]->floats(),
                         qkv->floats(),gate->floats(),alpha->floats(),beta->floats(),
                         weights[base+9]->floats(),weights[base+10]->floats(),
-                        weights[base+11]->floats(),weights[base+12]->floats(),batch,LK,LV,LD,epsilon);
+                        weights[base+11]->floats(),weights[base+12]->floats(),batch,LK,LV,LD,epsilon,
+                        trace ? trace+8*C : nullptr);
                 check(cudaGetLastError());
                 projection(residual->floats(),base+13,mixed->floats(),batch);
             } else {
@@ -409,15 +427,51 @@ struct Model {
         else check(cudaMemcpy(out,logits->data(),size_t(batch)*V*sizeof(float),cudaMemcpyDeviceToHost));
         position+=batch;
         poisoned=false;
+        if(recording)pending_batch=batch;
+    }
+    void commit(int accepted) {
+        ready();
+        require(pending_batch>0, "no pending verification");
+        require(accepted>=0 && accepted<=pending_batch, "acceptance outside verified batch");
+        if(accepted!=pending_batch) {
+            poisoned=true;
+            for(int layer=0;layer<L;layer++) if(layer%4!=3) {
+                check(cudaMemcpy(state[layer]->data(),verify_state[layer]->data(),state_bytes(layer),cudaMemcpyDeviceToDevice));
+                check(cudaMemcpy(history[layer]->data(),verify_history[layer]->data(),history_bytes(layer),cudaMemcpyDeviceToDevice));
+                if(accepted) {
+                    const float *trace=transitions[layer]->floats();
+                    k_delta_commit(mixed->floats(),state[layer]->floats(),history[layer]->floats(),
+                                   trace,trace+8*C,accepted,LK,LV,LD);
+                    check(cudaGetLastError());
+                }
+            }
+            finish();
+        }
+        // Rejected KV rows are unreachable and overwritten by future appends.
+        position=verify_position+accepted;
+        pending_batch=0;
+        poisoned=false;
     }
     void copy_state(bool restoring) {
         if(restoring) require(saved, "no valid checkpoint");
-        else { ready(); saved=false; }
+        else { ready(); require(!pending_batch, "commit or abort the pending verification first"); saved=false; }
         const int prefix=restoring ? saved_position : position;
         if(restoring) poisoned=true;
         for(int layer=0;layer<L;layer++) {
             size_t sb=state_bytes(layer),hb=history_bytes(layer);
             if(layer%4==3) sb=hb=size_t(prefix)*HKV*D*sizeof(uint16_t);
+            // HTTP generation never checkpoints. Allocate snapshots only on
+            // demand, and keep only the valid KV prefix rather than capacity.
+            if(!restoring) {
+                if(sb && (!saved_state[layer] || saved_state[layer]->size()<sb)) {
+                    saved_state[layer].reset();
+                    saved_state[layer]=allocate(sb);
+                }
+                if(hb && (!saved_history[layer] || saved_history[layer]->size()<hb)) {
+                    saved_history[layer].reset();
+                    saved_history[layer]=allocate(hb);
+                }
+            }
             if(sb) check(cudaMemcpy(restoring ? state[layer]->data() : saved_state[layer]->data(),
                                     restoring ? saved_state[layer]->data() : state[layer]->data(),
                                     sb,cudaMemcpyDeviceToDevice));
@@ -426,7 +480,7 @@ struct Model {
                                     hb,cudaMemcpyDeviceToDevice));
         }
         finish();
-        if(restoring) { position=saved_position; poisoned=false; }
+        if(restoring) { position=saved_position; poisoned=false; pending_batch=0; }
         else { saved_position=position; saved=true; }
     }
 };
@@ -441,7 +495,7 @@ extern "C" int qv_create(void **handle,const char *path,int context,float epsilo
         require(handle!=nullptr, "null handle output");
         *handle=nullptr;
         require(path!=nullptr, "null model path");
-        require(context>=1 && context<=32768, "context capacity must be 1..32768");
+        require(context>=1 && context<=139264, "context capacity must be 1..139264");
         epsilon_value(epsilon);
         *handle=new Model(path,context,epsilon);
     });
@@ -457,6 +511,10 @@ extern "C" int qv_advance(void *handle,const int *tokens,int batch,int *next) {
 }
 extern "C" int qv_reset(void *handle) { return call([&] { model(handle).reset(); }); }
 extern "C" int qv_checkpoint(void *handle) { return call([&] { model(handle).copy_state(false); }); }
+extern "C" int qv_verify(void *handle,const int *tokens,int batch,float *out) {
+    return call([&] { model(handle).evaluate(tokens,batch,out,nullptr,true); });
+}
+extern "C" int qv_commit(void *handle,int accepted) { return call([&] { model(handle).commit(accepted); }); }
 extern "C" int qv_restore(void *handle) { return call([&] { model(handle).copy_state(true); }); }
 extern "C" int qv_position(void *handle,int *position) {
     return call([&] { require(position!=nullptr,"null position output"); *position=model(handle).position; });

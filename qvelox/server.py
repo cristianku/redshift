@@ -56,7 +56,7 @@ def number(data, name, default, lower, upper, *, exclusive_lower=False):
 
 class Engine:
     """One runtime owner; the HTTP handler holds lock for an entire generation."""
-    def __init__(self, runtime, codec, model_id=MODEL_ID, context=32768):
+    def __init__(self, runtime, codec, model_id=MODEL_ID, context=139264):
         self.runtime, self.codec = runtime, codec
         self.model_id, self.context = model_id, context
         if type(context) is not int or context < 1:
@@ -263,16 +263,19 @@ class Engine:
                              if hasattr(self.codec, 'token_bytes') else self.codec.decode(generated))
             publish(final_decoded[len(visible):])
             visible = final_decoded
-        for delta in parser.finish():
+        truncated = reason == 'length'
+        for delta in parser.finish(truncated=truncated):
             tool_count += len(delta.get('tool_calls', []))
             if not request.parallel_tools and tool_count > 1:
                 raise ValueError('model produced multiple calls with parallel_tool_calls=false')
             emit(delta)
-        message = parse_assistant(('<think>' if request.thinking else '') + visible, tools=request.tools)
+        message = parse_assistant(('<think>' if request.thinking else '') + visible,
+                                  tools=request.tools, call_id_prefix=parser.call_id_prefix,
+                                  truncated=truncated)
         calls = message.get('tool_calls', [])
         if not request.parallel_tools and len(calls) > 1:
             raise ValueError('model produced multiple calls with parallel_tool_calls=false')
-        if calls:
+        if calls and not truncated:
             reason = 'tool_calls'
         usage = {'prompt_tokens': len(request.prompt), 'completion_tokens': sampled,
                  'total_tokens': len(request.prompt) + sampled}
@@ -469,10 +472,10 @@ def main():
     parser.add_argument('model', help='path to the supported Qwen GGUF')
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=8081)
-    parser.add_argument('--context', type=int, default=32768)
+    parser.add_argument('--context', type=int, default=139264)
     args = parser.parse_args()
-    if not 1 <= args.port <= 65535 or not 1 <= args.context <= 32768:
-        parser.error('port must be 1..65535 and context 1..32768')
+    if not 1 <= args.port <= 65535 or not 1 <= args.context <= 139264:
+        parser.error('port must be 1..65535 and context 1..139264')
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     from .runtime import Runtime
     from .text import TextCodec

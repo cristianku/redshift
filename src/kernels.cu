@@ -353,6 +353,21 @@ __global__ void gdn_scan(float *out, float *state, const float *qkv,
         for (unsigned i = 0; i < npt; i++) state[idx+(uint64_t)r*D+i] = s[r][i];
 }
 
+__global__ void record_transition(float *trace,const float *qkv,const float *a,
+                                  const float *b,int T,int C,int Hv) {
+    const int i=blockIdx.x*blockDim.x+threadIdx.x;
+    if(i<T*C) trace[i]=qkv[i];
+    if(i<T*Hv) { trace[8*C+i]=a[i]; trace[8*C+8*Hv+i]=b[i]; }
+}
+
+__global__ void commit_history(float *history,const float *raw,int T,int C) {
+    const int c=blockIdx.x*blockDim.x+threadIdx.x;
+    if(c>=C) return;
+    float win[3]={history[c],history[C+c],history[2*C+c]};
+    for(int t=0;t<T;t++) { win[0]=win[1]; win[1]=win[2]; win[2]=raw[t*C+c]; }
+    for(int i=0;i<3;i++) history[i*C+c]=win[i];
+}
+
 template<int ROWS>
 __global__ void q8(float *out,const unsigned char *w,const float *x,int T,int K,int M) {
     int row=blockIdx.x*4+threadIdx.x/32,lane=threadIdx.x%32;
@@ -540,13 +555,22 @@ void k_embed(float *o,const void *w,const int *ids,int T){qv::embed<<<dim3(20,T)
 void k_add(float *x,const float *y,int N){qv::add<<<(N+255)/256,256>>>(x,y,N);}
 void k_swiglu(float *o,const float *g,const float *u,int N){qv::swiglu<<<(N+255)/256,256>>>(o,g,u,N);}
 void k_delta(float *out,float *state,float *history,float *qkv,const float *z,float *a,float *b,
-        const float *cv,const float *A,const float *bias,const float *norm,int T,int Hk,int Hv,int D,float eps) {
+        const float *cv,const float *A,const float *bias,const float *norm,int T,int Hk,int Hv,int D,float eps,float *transitions) {
     int C=(2*Hk+Hv)*D;
     qv::conv<<<(C+255)/256,256>>>(qkv,history,cv,T,C,4,true,nullptr,0,nullptr,0);
     qv::gdn_prep<<<dim3(Hk,T),32>>>(qkv,a,b,A,bias,Hk,Hv,D);
+    if(transitions)qv::record_transition<<<(T*C+255)/256,256>>>(transitions,qkv,a,b,T,C,Hv);
     if(D==32)qv::gdn_scan<4,32><<<dim3(2,Hv),128>>>(out,state,qkv,a,b,T,Hk,Hv,nullptr,0,nullptr,0);
     else qv::gdn_scan<4,128><<<dim3(8,Hv),128>>>(out,state,qkv,a,b,T,Hk,Hv,nullptr,0,nullptr,0);
     qv::delta_out<<<dim3(Hv,T),32>>>(out,z,norm,Hv,D,eps);
+}
+void k_delta_commit(float *out,float *state,float *history,const float *raw,
+                    const float *transitions,int T,int Hk,int Hv,int D) {
+    const int C=(2*Hk+Hv)*D;
+    const float *a=transitions+8*C,*b=a+8*Hv;
+    qv::commit_history<<<(C+255)/256,256>>>(history,raw,T,C);
+    if(D==32)qv::gdn_scan<4,32><<<dim3(2,Hv),128>>>(out,state,transitions,a,b,T,Hk,Hv,nullptr,0,nullptr,0);
+    else qv::gdn_scan<4,128><<<dim3(8,Hv),128>>>(out,state,transitions,a,b,T,Hk,Hv,nullptr,0,nullptr,0);
 }
 void k_attention(float *o,void *kc,void *vc,float *q,float *gate,
         const float *qg,const float *k,const float *v,const float *qn,const float *kn,int T,int pos,float eps) {

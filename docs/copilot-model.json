@@ -1,0 +1,23 @@
+[
+  {
+    "name": "Redshift V100",
+    "vendor": "customendpoint",
+    "apiType": "chat-completions",
+    "models": [
+      {
+        "id": "redshift-qwen3.8-27b",
+        "name": "Redshift Qwen3.8 27B (V100)",
+        "url": "http://10.10.10.55:8081/v1/chat/completions",
+        "toolCalling": true,
+        "vision": false,
+        "thinking": false,
+        "contextWindow": 139264,
+        "maxInputTokens": 122880,
+        "maxOutputTokens": 16384,
+        "modelOptions": {
+          "temperature": 0
+        }
+      }
+    ]
+  }
+]

@@ -24,7 +24,7 @@ class ByteCodec:
     def token_bytes(self, token):
         return bytes([token])
 
-    def render(self, messages, tools=None, enable_thinking=False):
+    def render(self, messages, tools=None, enable_thinking=False, reasoning_effort='xhigh'):
         if not isinstance(messages, list) or not messages:
             raise ValueError('messages must be a nonempty list')
         for message in messages:
@@ -203,6 +203,62 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(body['choices'][0]['message']['content'], 'Hello')
         self.assertGreater(self.runtime.eval_calls, 0)
 
+    def test_reasoning_effort_enables_thinking_in_json_and_stream(self):
+        from test_text import TextCodec, tiny_metadata
+
+        self.engine.codec = TextCodec(tiny_metadata())
+        for effort, instruction in (('low', 'Keep your thinking brief and focused'),
+                                    ('medium', None),
+                                    ('xhigh', 'Please think carefully through the task')):
+            with self.subTest(effort=effort):
+                payload = self.payload(reasoning_effort=effort)
+                prepared = self.engine.prepare(payload)
+                self.assertTrue(prepared.thinking)
+                prompt = self.engine.codec.decode(prepared.prompt)
+                self.assertTrue(prompt.endswith('<think>\n'))
+                if instruction is None:
+                    self.assertNotIn('Reasoning effort is set to', prompt)
+                else:
+                    self.assertIn(instruction, prompt)
+                self.runtime.prompt = prepared.prompt
+                self.runtime.output = list(b'check</think>\n\nHello') + [256]
+                status, body = self.request(payload)
+                self.assertEqual(status, 200)
+                self.assertEqual(body['choices'][0]['message'], {
+                    'role': 'assistant', 'content': 'Hello', 'reasoning_content': 'check'})
+                chunks = self.stream({**payload, 'stream': True})
+                deltas = [chunk['choices'][0]['delta'] for chunk in chunks]
+                self.assertEqual(''.join(d.get('reasoning_content', '') for d in deltas), 'check')
+                self.assertEqual(''.join(d.get('content', '') for d in deltas), 'Hello')
+
+    def test_invalid_or_disabled_reasoning_effort_is_rejected_before_inference(self):
+        invalid = [{'reasoning_effort': effort}
+                   for effort in ('high', 'none', '', None, True, 3, [], {})]
+        invalid.append({'reasoning_effort': 'low', 'enable_thinking': False})
+        for overrides in invalid:
+            with self.subTest(overrides=overrides):
+                status, body = self.request(self.payload(**overrides))
+                self.assertEqual(status, 400)
+                self.assertIn('reasoning_effort', body['error']['message'])
+        self.assertEqual(self.runtime.calls, [])
+
+    def test_requests_without_effort_preserve_thinking_defaults(self):
+        from test_text import TextCodec, tiny_metadata
+
+        self.engine.codec = TextCodec(tiny_metadata())
+        for overrides, thinking in (({}, False), ({'enable_thinking': False}, False),
+                                    ({'enable_thinking': True}, True)):
+            with self.subTest(overrides=overrides):
+                request = self.engine.prepare(self.payload(**overrides))
+                self.assertEqual(request.thinking, thinking)
+                prompt = self.engine.codec.decode(request.prompt)
+                if thinking:
+                    self.assertIn('Reasoning effort is set to xhigh.', prompt)
+                    self.assertTrue(prompt.endswith('<think>\n'))
+                else:
+                    self.assertNotIn('Reasoning effort is set to', prompt)
+                    self.assertTrue(prompt.endswith('<think>\n\n</think>\n\n'))
+
     def test_sampling_can_choose_non_argmax_and_top_p_limits_candidates(self):
         original = self.runtime.evaluate
 
@@ -311,10 +367,56 @@ class ServerTests(unittest.TestCase):
         chunks = self.stream(self.payload(tools=tools, max_tokens=256, stream=True))
         calls = [d for c in chunks for d in c['choices'][0]['delta'].get('tool_calls', [])]
         self.assertEqual(calls[0]['function'], call['function'])
+        self.assertNotEqual(calls[0]['id'], call['id'])
         self.runtime.output = list(b'Sunny') + [256]
         payload = self.payload('Qresult', messages=[{'role': 'user', 'content': 'Q'},
                         {'role': 'tool', 'tool_call_id': call['id'], 'content': 'result'}])
         self.assertEqual(self.request(payload)[1]['choices'][0]['message']['content'], 'Sunny')
+
+    def test_tool_token_limit_returns_length_without_incomplete_call_json_and_sse(self):
+        tools = [{'type': 'function', 'function': {'name': 'weather', 'parameters': {
+            'type': 'object', 'properties': {'city': {'type': 'string'}}}}}]
+        self.runtime.output = list(b'Before<tool_call><function=weather><parameter=city>Bern') + [256]
+        payload = self.payload(tools=tools, max_tokens=48)
+        status, body = self.request(payload)
+        self.assertEqual(status, 200)
+        self.assertEqual(body['choices'][0]['finish_reason'], 'length')
+        self.assertEqual(body['choices'][0]['message'], {'role': 'assistant', 'content': 'Before'})
+        chunks = self.stream({**payload, 'stream': True})
+        self.assertEqual(chunks[-1]['choices'][0]['finish_reason'], 'length')
+        self.assertEqual(''.join(c['choices'][0]['delta'].get('content', '') for c in chunks), 'Before')
+        self.assertFalse(any(c['choices'][0]['delta'].get('tool_calls') for c in chunks))
+
+    def test_length_keeps_complete_call_and_discards_partial_following_call(self):
+        tools = [{'type': 'function', 'function': {'name': 'weather', 'parameters': {
+            'type': 'object', 'properties': {'city': {'type': 'string'}}}}}]
+        complete = '<tool_call><function=weather><parameter=city>Bern</parameter></function></tool_call>'
+        partial = '<tool_call><function=weather><parameter=city>'
+        self.runtime.output = list((complete + partial + 'Basel').encode()) + [256]
+        status, body = self.request(self.payload(tools=tools, max_tokens=len(complete + partial)))
+        self.assertEqual(status, 200)
+        self.assertEqual(body['choices'][0]['finish_reason'], 'length')
+        calls = body['choices'][0]['message']['tool_calls']
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(json.loads(calls[0]['function']['arguments']), {'city': 'Bern'})
+
+    def test_completed_malformed_tool_is_error_even_at_token_limit(self):
+        tools = [{'type': 'function', 'function': {'name': 'weather', 'parameters': {'type': 'object'}}}]
+        malformed = '<tool_call><function=unknown></function></tool_call>'
+        self.runtime.output = list(malformed.encode()) + [256]
+        status, body = self.request(self.payload(tools=tools, max_tokens=len(malformed)))
+        self.assertEqual(status, 500)
+        self.assertEqual(body['error']['code'], 'inference_error')
+
+    def test_one_completion_keeps_stream_and_final_tool_ids_identical(self):
+        tools = [{'type': 'function', 'function': {'name': 'weather', 'parameters': {'type': 'object'}}}]
+        self.runtime.output = list(b'<tool_call><function=weather></function></tool_call>') + [256]
+        prepared = self.engine.prepare(self.payload(tools=tools, max_tokens=100))
+        deltas = []
+        message, finish, _ = self.engine.generate(prepared, lambda: None, deltas.append)
+        self.assertEqual(finish, 'tool_calls')
+        streamed = [call for delta in deltas for call in delta.get('tool_calls', [])]
+        self.assertEqual([c['id'] for c in streamed], [c['id'] for c in message['tool_calls']])
 
     def test_bad_json_and_large_body_are_rejected(self):
         connection = self.connection()

@@ -23,6 +23,18 @@ class ModelTests(unittest.TestCase):
             self.assertEqual(max(range(len(row)), key=row.__getitem__),
                              max(range(len(reference)), key=reference.__getitem__))
 
+    def test_checkpoint_grows_with_prefix_and_restores_continuation(self):
+        runtime = self.runtime
+        for prefix in ([], [10], [10, 20, 30, 40, 50]):
+            with self.subTest(prefix=prefix):
+                runtime.reset()
+                if prefix:
+                    runtime.evaluate(prefix)
+                runtime.checkpoint()
+                expected = runtime.evaluate([60, 70])
+                runtime.restore()
+                self.close_rows(runtime.evaluate([60, 70]), expected)
+
     def test_all_rows_match_sequential_at_nonzero_prefix(self):
         runtime = self.runtime
         runtime.reset()
@@ -49,6 +61,65 @@ class ModelTests(unittest.TestCase):
         runtime.reset()
         runtime.evaluate([10, 20, 30, 100, 101, 102])
         self.close_rows(actual, runtime.evaluate([900, 901]))
+
+    def test_transition_commit_matches_serial_continuation(self):
+        runtime = self.runtime
+        runtime.reset()
+        runtime.evaluate([10, 20, 30])
+        runtime.checkpoint()
+        for batch in (2, 4, 8):
+            tokens = [100 + 13*i for i in range(batch)]
+            for accepted in range(batch+1):
+                with self.subTest(batch=batch, accepted=accepted):
+                    runtime.restore()
+                    reference_rows = runtime.evaluate(tokens)
+                    runtime.restore()
+                    rows = runtime.verify(tokens)
+                    self.close_rows(rows, reference_rows)
+                    with self.assertRaises(RuntimeError):
+                        runtime.evaluate([999])
+                    with self.assertRaises((RuntimeError, ValueError)):
+                        runtime.commit(batch+1)
+                    runtime.commit(accepted)
+                    self.assertEqual(runtime.position, 3+accepted)
+                    with self.assertRaises(RuntimeError):
+                        runtime.commit(accepted)
+                    actual = runtime.evaluate([900, 901])
+                    runtime.restore()
+                    for token in tokens[:accepted]:
+                        runtime.evaluate([token])
+                    self.close_rows(actual, runtime.evaluate([900, 901]))
+                    # Rejected KV rows must be overwritten on the next cycle.
+                    runtime.restore()
+                    runtime.verify(tokens)
+                    runtime.commit(accepted)
+                    runtime.verify([900, 901])
+                    runtime.commit(1)
+                    actual = runtime.evaluate([902])
+                    runtime.restore()
+                    for token in [*tokens[:accepted], 900]:
+                        runtime.evaluate([token])
+                    self.close_rows(actual, runtime.evaluate([902]))
+
+    def test_restore_and_reset_abort_pending_verification(self):
+        runtime = self.runtime
+        runtime.reset()
+        runtime.evaluate([10])
+        runtime.checkpoint()
+        runtime.verify([100, 101])
+        with self.assertRaises(RuntimeError):
+            runtime.checkpoint()
+        with self.assertRaises(RuntimeError):
+            runtime.verify([102])
+        runtime.restore()
+        self.assertEqual(runtime.position, 1)
+        with self.assertRaises(RuntimeError):
+            runtime.commit(1)
+        runtime.verify([100])
+        runtime.reset()
+        self.assertEqual(runtime.position, 0)
+        with self.assertRaises(RuntimeError):
+            runtime.commit(0)
 
     def test_advance_matches_all_logit_argmax_and_state(self):
         runtime = self.runtime
