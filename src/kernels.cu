@@ -16,7 +16,9 @@ __device__ float block_sum(float x, float *scratch) {
     x=sum(x);
     if (!(threadIdx.x&31)) scratch[threadIdx.x/32]=x;
     __syncthreads();
-    float y=threadIdx.x<blockDim.x/32 ? scratch[threadIdx.x] : 0;
+    // Every warp needs the block total, not just warp zero.
+    const unsigned lane=threadIdx.x&31;
+    float y=lane<blockDim.x/32 ? scratch[lane] : 0;
     y=sum(y);
     __syncthreads();
     return y;
@@ -249,6 +251,8 @@ __global__ void attention(float *out,const float *q,const float *gate,
     for(int d=16;d;d>>=1)mx=fmaxf(mx,__shfl_xor_sync(0xffffffff,mx,d));
     if(!lane)red[warp]=mx;__syncthreads();
     mx=-INFINITY;for(int i=0;i<8;i++)mx=fmaxf(mx,red[i]);
+    // All warps must finish reading the maxima before block_sum reuses red.
+    __syncthreads();
     float total=0;for(int p=tid;p<n;p+=256){float a=expf(score[p]-mx);score[p]=a;total+=a;}
     total=block_sum(total,red);__syncthreads();
     float value=0;for(int p=0;p<n;p++)value+=score[p]*__half2float(vc[((uint64_t)p*4+kh)*256+tid]);

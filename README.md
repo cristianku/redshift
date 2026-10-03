@@ -136,14 +136,14 @@ Before building a large runtime, each proposed optimization should answer a meas
 
 Early milestones:
 
-- [ ] minimal GGUF reader
+- [x] minimal GGUF reader
 - [ ] tokenizer integration
-- [ ] Qwen3.8 model metadata inspection
-- [ ] CPU reference path for correctness
-- [ ] minimal CUDA execution path
+- [x] Qwen3.8 model metadata inspection
+- [x] CPU references for kernel correctness
+- [x] minimal CUDA execution path
 - [ ] baseline single-token decode benchmark
-- [ ] Volta-specific quantized kernels
-- [ ] complete 2/4/8-token verification benchmark
+- [x] Volta-specific quantized kernels
+- [x] complete 2/4/8-token verification benchmark
 - [ ] speculative decoding prototype
 - [ ] profiling of memory bandwidth and kernel occupancy
 - [ ] end-to-end generation benchmark
@@ -160,6 +160,17 @@ Early milestones:
 ## Status
 
 Redshift is currently in the **research and initial implementation phase**.
+
+A numeric proof of concept now runs the full 27B graph on a V100 32 GB.
+With a 16-token prefix, measured throughput including state restoration is
+19.6 / 30.3 / 43.2 / 41.0 supplied tokens/s for groups of 1 / 2 / 4 / 8.
+These are **verification-capacity measurements**, not generated or accepted
+speculative tokens/s. Tokenizer, proposal/acceptance loop and external-engine
+numerical validation remain open.
+
+See [the proof-of-concept report](docs/poc-results.md) for raw measurements,
+validation and reproduction commands. The internal Python package remains
+`qvelox`; `python3 -m qvelox --help` lists inspection and benchmark commands.
 
 APIs, file layout and kernel interfaces should be considered unstable.
 

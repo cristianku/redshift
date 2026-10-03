@@ -1,5 +1,6 @@
 #ifndef QVELOX_RUNTIME_H
 #define QVELOX_RUNTIME_H
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,6 +40,20 @@ int qv_test_attention(float *out, void *key_cache, void *value_cache,
                       const float *q_gate, const float *key, const float *value,
                       const float *q_norm, const float *k_norm,
                       int batch, int position, float epsilon);
+
+/* Model ABI. One handle is single-threaded. Upload each validated manifest
+ * slot once, before evaluating. Weights remain quantized on the GPU.
+ * context: 1..2048, evaluate: 1..8 token IDs, out: [batch,248320] floats.
+ * A checkpoint stores all recurrent state and the valid KV prefix. Restore
+ * can be repeated; reset invalidates it. No implicit speculative acceptance. */
+int qv_create(void **handle, const char *path, int context, float epsilon);
+int qv_upload(void *handle, int slot, uint64_t offset, uint64_t length);
+int qv_evaluate(void *handle, const int *tokens, int batch, float *out);
+int qv_reset(void *handle);
+int qv_checkpoint(void *handle);
+int qv_restore(void *handle);
+int qv_position(void *handle, int *position);
+void qv_destroy(void *handle);
 
 #ifdef __cplusplus
 }

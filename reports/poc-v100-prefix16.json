@@ -1,0 +1,271 @@
+{
+  "measurement": "numeric group verification, all vocabulary rows, synthetic token IDs",
+  "limitations": [
+    "This is not autoregressive generation throughput or accepted speculative tokens/s.",
+    "No tokenizer, text-quality validation, proposal model or acceptance loop.",
+    "Full-model correctness is checked against this runtime sequentially, not an external engine.",
+    "The timing includes host output allocation, all GPU work, logits transfer and Python row copies.",
+    "The primary throughput also includes restoring the same prefix checkpoint before each call."
+  ],
+  "utc": "2026-10-03T12:33:17Z",
+  "model": {
+    "path": "/opt/models/qwen3.8-27b/Qwen3.8-27B-Q4_K_M.gguf",
+    "bytes": 18973870432,
+    "sha256": "31629f53165ab6a7dad8c9847dcfd1fdf55829dac1e6e748f4a68581b0033d34"
+  },
+  "source_sha256": {
+    "Makefile": "00ca794fcbd2e3c2743b4e49cc76fb4ea39fa0e4f1646481a67e56ae528cc8e4",
+    "qvelox/__init__.py": "bbf02485f6d418c11430f54ca828f981acd742890492de0b3be313a1219fc0d8",
+    "qvelox/__main__.py": "296682ef02607006c020d9d7500cfbb12ab4df6bd2b37c2e3fb18bd49d6ccaab",
+    "qvelox/gguf.py": "137ddf0d16f8f9625455c0f0691c0c2c51d1c9466d73a8eb88a1b088e91d4204",
+    "qvelox/model.py": "9cb77ee54653d6d75c76e5e834b2be38f621506849284d0e97154784ddc7a18a",
+    "qvelox/runtime.py": "cf74e4c460a0d0585f93a14e24b67cfe2aed613e6a64b9aa8fdd35398e88add2",
+    "src/kernels.cu": "583345467b4f657424f44c86617ebf343e2c6de1481c6e59dc8797c6c4c39322",
+    "src/kernels.h": "651d98870ca1b26a0520fb48b2fdf265aa0e784a41340c7dac98dabb8540eab0",
+    "src/runtime.cu": "6ea4a53a4ebce6143ba43ca3dda723083fbb049966691ec8267960c82748ed52",
+    "src/runtime.h": "ef6ef9f114cb73fae239fea17ad4639a4ecaa96578273c47a4f329e2baa98f0f"
+  },
+  "library_sha256": "8e2477746f05c04c1dac115bd3a1f68ebb5633971b16800cbc25dcb18f937304",
+  "platform": "Linux-7.0.14-20-pve-x86_64-with-glibc2.39",
+  "python": "3.12.3",
+  "gpu_before": "name, uuid, driver_version, memory.total [MiB], memory.used [MiB], utilization.gpu [%], clocks.current.sm [MHz], clocks.current.memory [MHz], temperature.gpu\nTesla V100-PCIE-32GB, GPU-1015f4d2-b64e-83ee-147f-780a38d7e199, 580.178.04, 32768 MiB, 0 MiB, 0 %, 135 MHz, 877 MHz, 41",
+  "nvcc": "nvcc: NVIDIA (R) Cuda compiler driver\nCopyright (c) 2005-2025 NVIDIA Corporation\nBuilt on Tue_May_27_02:21:03_PDT_2025\nCuda compilation tools, release 12.9, V12.9.86\nBuild cuda_12.9.r12.9/compiler.36037853_0",
+  "prefix_ids": [
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25
+  ],
+  "candidate_ids": [
+    100,
+    113,
+    126,
+    139,
+    152,
+    165,
+    178,
+    191
+  ],
+  "repeats": 5,
+  "context_capacity": 24,
+  "vocabulary_rows_per_token": 248320,
+  "weight_upload_chunk_bytes": 16777216,
+  "samples": [
+    {
+      "repeat": 0,
+      "batch": 1,
+      "restore_seconds": 0.000927767003304325,
+      "evaluate_seconds": 0.050240298005519435,
+      "total_seconds": 0.05116806500882376,
+      "logits_sha256": "6b21bf039a3d619d0de0842dd6d42494cd96f49efe637b490efabc4c591dedc1"
+    },
+    {
+      "repeat": 0,
+      "batch": 2,
+      "restore_seconds": 0.0007081130024744198,
+      "evaluate_seconds": 0.06545832200208679,
+      "total_seconds": 0.06616643500456121,
+      "logits_sha256": "af8806c3b488100d9bf8c02dc57fa8ad8a6ff50335fbc56c46f287a0d9fd4f9d"
+    },
+    {
+      "repeat": 0,
+      "batch": 4,
+      "restore_seconds": 0.0007070230058161542,
+      "evaluate_seconds": 0.09203563799383119,
+      "total_seconds": 0.09274266099964734,
+      "logits_sha256": "dcf101cca03d341ec385c491193200f0902b1eabbcd5692704b083865f9e31f6"
+    },
+    {
+      "repeat": 0,
+      "batch": 8,
+      "restore_seconds": 0.0006989730027271435,
+      "evaluate_seconds": 0.19424618499760982,
+      "total_seconds": 0.19494515800033696,
+      "logits_sha256": "dcfec1366ca1e9c4e9fbb195b22e49fb08326e73db708a2f21cc3042bb526e55"
+    },
+    {
+      "repeat": 1,
+      "batch": 8,
+      "restore_seconds": 0.0007304030004888773,
+      "evaluate_seconds": 0.19405815200298093,
+      "total_seconds": 0.1947885550034698,
+      "logits_sha256": "dcfec1366ca1e9c4e9fbb195b22e49fb08326e73db708a2f21cc3042bb526e55"
+    },
+    {
+      "repeat": 1,
+      "batch": 4,
+      "restore_seconds": 0.0007341640011873096,
+      "evaluate_seconds": 0.09193579599377699,
+      "total_seconds": 0.0926699599949643,
+      "logits_sha256": "dcf101cca03d341ec385c491193200f0902b1eabbcd5692704b083865f9e31f6"
+    },
+    {
+      "repeat": 1,
+      "batch": 2,
+      "restore_seconds": 0.0007123530085664243,
+      "evaluate_seconds": 0.06534929999907035,
+      "total_seconds": 0.06606165300763678,
+      "logits_sha256": "af8806c3b488100d9bf8c02dc57fa8ad8a6ff50335fbc56c46f287a0d9fd4f9d"
+    },
+    {
+      "repeat": 1,
+      "batch": 1,
+      "restore_seconds": 0.000699183001415804,
+      "evaluate_seconds": 0.04999487299937755,
+      "total_seconds": 0.05069405600079335,
+      "logits_sha256": "6b21bf039a3d619d0de0842dd6d42494cd96f49efe637b490efabc4c591dedc1"
+    },
+    {
+      "repeat": 2,
+      "batch": 1,
+      "restore_seconds": 0.0007064139936119318,
+      "evaluate_seconds": 0.05001606300356798,
+      "total_seconds": 0.05072247699717991,
+      "logits_sha256": "6b21bf039a3d619d0de0842dd6d42494cd96f49efe637b490efabc4c591dedc1"
+    },
+    {
+      "repeat": 2,
+      "batch": 2,
+      "restore_seconds": 0.00070824300928507,
+      "evaluate_seconds": 0.0652222569915466,
+      "total_seconds": 0.06593050000083167,
+      "logits_sha256": "af8806c3b488100d9bf8c02dc57fa8ad8a6ff50335fbc56c46f287a0d9fd4f9d"
+    },
+    {
+      "repeat": 2,
+      "batch": 4,
+      "restore_seconds": 0.0007002829952398315,
+      "evaluate_seconds": 0.09178825300477911,
+      "total_seconds": 0.09248853600001894,
+      "logits_sha256": "dcf101cca03d341ec385c491193200f0902b1eabbcd5692704b083865f9e31f6"
+    },
+    {
+      "repeat": 2,
+      "batch": 8,
+      "restore_seconds": 0.0007044530066195875,
+      "evaluate_seconds": 0.19425156599027105,
+      "total_seconds": 0.19495601899689063,
+      "logits_sha256": "dcfec1366ca1e9c4e9fbb195b22e49fb08326e73db708a2f21cc3042bb526e55"
+    },
+    {
+      "repeat": 3,
+      "batch": 8,
+      "restore_seconds": 0.000732233005692251,
+      "evaluate_seconds": 0.19416538400400896,
+      "total_seconds": 0.1948976170097012,
+      "logits_sha256": "dcfec1366ca1e9c4e9fbb195b22e49fb08326e73db708a2f21cc3042bb526e55"
+    },
+    {
+      "repeat": 3,
+      "batch": 4,
+      "restore_seconds": 0.0007300739962374792,
+      "evaluate_seconds": 0.09194900600414257,
+      "total_seconds": 0.09267908000038005,
+      "logits_sha256": "dcf101cca03d341ec385c491193200f0902b1eabbcd5692704b083865f9e31f6"
+    },
+    {
+      "repeat": 3,
+      "batch": 2,
+      "restore_seconds": 0.0007110730075510219,
+      "evaluate_seconds": 0.06540041099651717,
+      "total_seconds": 0.06611148400406819,
+      "logits_sha256": "af8806c3b488100d9bf8c02dc57fa8ad8a6ff50335fbc56c46f287a0d9fd4f9d"
+    },
+    {
+      "repeat": 3,
+      "batch": 1,
+      "restore_seconds": 0.0007026929961284623,
+      "evaluate_seconds": 0.050255617999937385,
+      "total_seconds": 0.05095831099606585,
+      "logits_sha256": "6b21bf039a3d619d0de0842dd6d42494cd96f49efe637b490efabc4c591dedc1"
+    },
+    {
+      "repeat": 4,
+      "batch": 1,
+      "restore_seconds": 0.0007084430108079687,
+      "evaluate_seconds": 0.05026213800010737,
+      "total_seconds": 0.05097058101091534,
+      "logits_sha256": "6b21bf039a3d619d0de0842dd6d42494cd96f49efe637b490efabc4c591dedc1"
+    },
+    {
+      "repeat": 4,
+      "batch": 2,
+      "restore_seconds": 0.000713102999725379,
+      "evaluate_seconds": 0.06534365900733974,
+      "total_seconds": 0.06605676200706512,
+      "logits_sha256": "af8806c3b488100d9bf8c02dc57fa8ad8a6ff50335fbc56c46f287a0d9fd4f9d"
+    },
+    {
+      "repeat": 4,
+      "batch": 4,
+      "restore_seconds": 0.00070568299270235,
+      "evaluate_seconds": 0.0918407940043835,
+      "total_seconds": 0.09254647699708585,
+      "logits_sha256": "dcf101cca03d341ec385c491193200f0902b1eabbcd5692704b083865f9e31f6"
+    },
+    {
+      "repeat": 4,
+      "batch": 8,
+      "restore_seconds": 0.0007071829895721748,
+      "evaluate_seconds": 0.19421329500619322,
+      "total_seconds": 0.1949204779957654,
+      "logits_sha256": "dcfec1366ca1e9c4e9fbb195b22e49fb08326e73db708a2f21cc3042bb526e55"
+    }
+  ],
+  "load_seconds": 7.099702270992566,
+  "max_scaled_logit_error": {
+    "1": 0.0,
+    "2": 0.0,
+    "4": 0.0,
+    "8": 0.0
+  },
+  "warmup": "sequential correctness pass and one full call per group size",
+  "gpu_loaded": "memory.used [MiB], utilization.gpu [%], clocks.current.sm [MHz], clocks.current.memory [MHz], temperature.gpu\n18950 MiB, 0 %, 1380 MHz, 877 MHz, 43",
+  "summary": {
+    "1": {
+      "median_total_seconds": 0.05095831099606585,
+      "median_evaluate_seconds": 0.050240298005519435,
+      "verified_input_tokens_per_second_including_restore": 19.62388431746106,
+      "verified_input_tokens_per_second_evaluate_only": 19.904340533373016,
+      "min_total_seconds": 0.05069405600079335,
+      "max_total_seconds": 0.05116806500882376
+    },
+    "2": {
+      "median_total_seconds": 0.06606165300763678,
+      "median_evaluate_seconds": 0.06534929999907035,
+      "verified_input_tokens_per_second_including_restore": 30.274749555067878,
+      "verified_input_tokens_per_second_evaluate_only": 30.604765468466404,
+      "min_total_seconds": 0.06593050000083167,
+      "max_total_seconds": 0.06616643500456121
+    },
+    "4": {
+      "median_total_seconds": 0.0926699599949643,
+      "median_evaluate_seconds": 0.09193579599377699,
+      "verified_input_tokens_per_second_including_restore": 43.16393360067664,
+      "verified_input_tokens_per_second_evaluate_only": 43.508624217173846,
+      "min_total_seconds": 0.09248853600001894,
+      "max_total_seconds": 0.09274266099964734
+    },
+    "8": {
+      "median_total_seconds": 0.1949204779957654,
+      "median_evaluate_seconds": 0.19421329500619322,
+      "verified_input_tokens_per_second_including_restore": 41.042378318884474,
+      "verified_input_tokens_per_second_evaluate_only": 41.1918246881342,
+      "min_total_seconds": 0.1947885550034698,
+      "max_total_seconds": 0.19495601899689063
+    }
+  },
+  "gpu_after": "memory.used [MiB], utilization.gpu [%], clocks.current.sm [MHz], clocks.current.memory [MHz], temperature.gpu\n314 MiB, 96 %, 1380 MHz, 877 MHz, 47"
+}

@@ -1,0 +1,5 @@
+Original block reduction fails the weighted RMS CPU comparison as expected.
+Traceback (most recent call last):
+  File "/tmp/redshift-xNTyQ95T/tests/test_cuda.py", line 113, in test_weighted_rms_on_each_row
+    self.assertAlmostEqual(out[t * width + i], x[t * width + i] * inv * w[i], delta=2e-6)
+AssertionError: 565.8336791992188 != 0.8001119526010261 within 2e-06 delta (565.0335672466177 difference)

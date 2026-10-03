@@ -4,6 +4,8 @@ import unittest
 from pathlib import Path
 
 from qvelox.gguf import read_gguf
+from qvelox.gguf import GGUF, Tensor
+from qvelox.model import EXPECTED, schema, validate_qwen27b
 
 
 def string(s):
@@ -53,6 +55,57 @@ class GGUFTests(unittest.TestCase):
     def test_rejects_wrong_magic(self):
         with self.assertRaises(ValueError):
             self.read(b"NOPE" + fixture()[4:])
+
+    def test_rejects_overlapping_tensor_payloads(self):
+        header = b'GGUF' + struct.pack('<IQQ', 3, 2, 0)
+        for name, offset in (('a', 0), ('b', 256)):
+            header += string(name) + struct.pack('<IQQIQ', 2, 256, 2, 12, offset)
+        data = header + bytes((-len(header)) % 32) + bytes(544)
+        with self.assertRaisesRegex(ValueError, 'overlapping'):
+            self.read(data)
+
+    def test_rejects_duplicate_tensor_names(self):
+        header = b'GGUF' + struct.pack('<IQQ', 3, 2, 0)
+        for offset in (0, 320):
+            header += string('a') + struct.pack('<IQQIQ', 2, 256, 2, 12, offset)
+        data = header + bytes((-len(header)) % 32) + bytes(608)
+        with self.assertRaisesRegex(ValueError, 'duplicate'):
+            self.read(data)
+
+
+class ManifestTests(unittest.TestCase):
+    def setUp(self):
+        self.metadata = {'general.architecture': 'qwen35',
+                         'qwen35.attention.layer_norm_rms_epsilon': 1e-6}
+        self.metadata.update({'qwen35.' + key: value for key, value in EXPECTED.items()})
+        self.tensors = {name: Tensor(name, shape, kind, 0, 0) for _, name, shape, kind in schema()}
+        self.model = GGUF(Path('synthetic.gguf'), self.metadata, self.tensors)
+
+    def test_accepts_supported_manifest(self):
+        self.assertEqual(validate_qwen27b(self.model), 1e-6)
+
+    def test_rejects_unsupported_architecture_dimensions_and_epsilon(self):
+        for key, value in (('general.architecture', 'llama'),
+                           ('qwen35.attention.head_count', 32),
+                           ('qwen35.attention.layer_norm_rms_epsilon', float('nan'))):
+            with self.subTest(key=key):
+                original = self.metadata[key]
+                self.metadata[key] = value
+                with self.assertRaises(ValueError):
+                    validate_qwen27b(self.model)
+                self.metadata[key] = original
+
+    def test_rejects_missing_extra_and_wrongly_quantized_tensor(self):
+        weight = self.tensors.pop('output.weight')
+        with self.assertRaises(ValueError):
+            validate_qwen27b(self.model)
+        self.tensors['output.weight'] = Tensor(weight.name, weight.shape, 12, 0, 0)
+        with self.assertRaises(ValueError):
+            validate_qwen27b(self.model)
+        self.tensors['output.weight'] = weight
+        self.tensors['unknown.weight'] = weight
+        with self.assertRaises(ValueError):
+            validate_qwen27b(self.model)
 
 
 if __name__ == "__main__":
