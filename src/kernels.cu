@@ -28,31 +28,32 @@ __device__ float block_sum(float x, float *scratch) {
     __syncthreads();
     return y;
 }
-// Each activation block is quantized once and reused by every output row.
-// Keep scale and original sum in FP32: the affine Q4 offset uses sum(x).
-struct ActivationQ8 {
-    float scale, sum;
-    int values[8];
+// Two signed byte components represent each activation with 16-bit precision.
+// q = 256*high + low, with both components in [-127,127] except low=-128.
+// Vector-aligned payloads reduce load instructions in the projection loop.
+struct __align__(16) ActivationQ16 {
+    int4 high[2],low[2];
+    float scale,sum;
 };
-static_assert(sizeof(ActivationQ8)==40, "activation block layout");
-
-__global__ void quantize_activations(ActivationQ8 *out,const float *x,int K) {
-    const int lane=threadIdx.x&31;
-    const int block=blockIdx.x*8+threadIdx.x/32;
+static_assert(sizeof(ActivationQ16)==80, "activation block layout");
+__global__ void quantize_activations(ActivationQ16 *out,const float *x,int K) {
+    const int lane=threadIdx.x&31,block=blockIdx.x*8+threadIdx.x/32;
     if(block>=K/32)return;
     const float value=x[(uint64_t)blockIdx.y*K+block*32+lane];
     float maximum=fabsf(value);
     for(int d=16;d;d>>=1)maximum=fmaxf(maximum,__shfl_xor_sync(0xffffffff,maximum,d));
-    const float scale=maximum/127.f;
-    const int quant=maximum==0.f ? 0 : (int)roundf(value/scale);
+    const float scale=maximum/32639.f;
+    const int q=scale==0.f?0:(int)roundf(value/scale);
+    const int hi=(q+128)>>8,lo=q-hi*256;
     const float total=sum(value);
-    ActivationQ8 &target=out[(uint64_t)blockIdx.y*(K/32)+block];
-    // Four lanes pack four signed bytes, without overlapping byte stores.
-    const unsigned byte=(unsigned)quant&255;
-    const unsigned b1=__shfl_down_sync(0xffffffff,byte,1);
-    const unsigned b2=__shfl_down_sync(0xffffffff,byte,2);
-    const unsigned b3=__shfl_down_sync(0xffffffff,byte,3);
-    if(!(lane&3))target.values[lane/4]=(int)(byte|(b1<<8)|(b2<<16)|(b3<<24));
+    ActivationQ16 &target=out[(uint64_t)blockIdx.y*(K/32)+block];
+    const unsigned h=(unsigned)hi&255,l=(unsigned)lo&255;
+    const unsigned h1=__shfl_down_sync(0xffffffff,h,1),h2=__shfl_down_sync(0xffffffff,h,2),h3=__shfl_down_sync(0xffffffff,h,3);
+    const unsigned l1=__shfl_down_sync(0xffffffff,l,1),l2=__shfl_down_sync(0xffffffff,l,2),l3=__shfl_down_sync(0xffffffff,l,3);
+    if(!(lane&3)) {
+        ((int *)target.high)[lane/4]=(int)(h|(h1<<8)|(h2<<16)|(h3<<24));
+        ((int *)target.low)[lane/4]=(int)(l|(l1<<8)|(l2<<16)|(l3<<24));
+    }
     if(!lane){target.scale=scale;target.sum=total;}
 }
 
@@ -114,197 +115,83 @@ __global__ void pack_weights(uint8_t *out,const uint8_t *w,int K,int M) {
     }
 }
 
-template<int KIND,int TOKENS>
-__global__ void mm_packed(float *__restrict__ out,const uint8_t *__restrict__ w,
-        const ActivationQ8 *__restrict__ x,int T,int K,int M) {
-    const int lane=threadIdx.x&31,token=threadIdx.x/32;
-    const int row=blockIdx.x*32+lane;
-    const int splits=projection_splits(M);
-    if(row>=M || token>=T)return;
-    const int padded=(M+31)/32*32;
-    const int ints=K/(KIND==12?8:4),groups=K/(KIND==14?16:32);
-    const int *bits=(const int *)w+(size_t)blockIdx.x*ints*32+lane;
-    const float *scales=(const float *)w+(size_t)padded*ints+(size_t)blockIdx.x*groups*32+lane;
-    const ActivationQ8 *input=x+(size_t)token*(K/32);
-    float result=0;
-    if constexpr(KIND==12) {
-        const float *minimum=scales+(size_t)padded*groups;
-        for(int g=2*((K/64)*blockIdx.y/splits);g<2*((K/64)*(blockIdx.y+1)/splits);g+=2) {
-            int dot0=0,dot1=0;
-            #pragma unroll
-            for(int c=0;c<8;c++) {
-                const unsigned weight=bits[(g*4+c)*32];
-                dot0=__dp4a((int)(weight&0x0f0f0f0f),input[g].values[c],dot0);
-                dot1=__dp4a((int)((weight>>4)&0x0f0f0f0f),input[g+1].values[c],dot1);
-            }
-            result+=scales[g*32]*input[g].scale*dot0;
-            result-=minimum[g*32]*input[g].sum;
-            result+=scales[(g+1)*32]*input[g+1].scale*dot1;
-            result-=minimum[(g+1)*32]*input[g+1].sum;
-        }
-    } else {
-        for(int g=(K/32)*blockIdx.y/splits;g<(K/32)*(blockIdx.y+1)/splits;g++) {
-            int dot0=0,dot1=0;
-            #pragma unroll
-            for(int c=0;c<4;c++) {
-                dot0=__dp4a(bits[(g*8+c)*32],input[g].values[c],dot0);
-                dot1=__dp4a(bits[(g*8+c+4)*32],input[g].values[c+4],dot1);
-            }
-            if constexpr(KIND==14)result+=input[g].scale*(scales[g*64]*dot0+scales[g*64+32]*dot1);
-            else result+=input[g].scale*scales[g*32]*(dot0+dot1);
-        }
-    }
-    out[((uint64_t)blockIdx.y*T+token)*M+row]=result;
+template<int ROWS> struct Vector;
+template<> struct Vector<1> {int v[1];__device__ explicit Vector(const int *p){v[0]=*p;}};
+template<> struct Vector<2> {int2 v;__device__ explicit Vector(const int *p){v=*(const int2*)p;}};
+template<> struct Vector<4> {int4 v;__device__ explicit Vector(const int *p){v=*(const int4*)p;}};
+template<int ROWS> __device__ __forceinline__ int component(const Vector<ROWS> &v,int r) {
+    return ((const int *)&v)[r];
 }
-
-template<int KIND,int TOKENS>
-__global__ void mm_packed4(float *__restrict__ out,const uint8_t *__restrict__ w,
-        const ActivationQ8 *__restrict__ x,int T,int K,int M) {
-    const int lane=(threadIdx.x%8)*4,token=threadIdx.x/8;
-    const int row=blockIdx.x*32+lane;
-    const int splits=projection_splits(M);
+template<int KIND,int TOKENS,int ROWS,int PAIRS>
+__global__ void mm_precise(float *__restrict__ out,const uint8_t *__restrict__ w,
+        const ActivationQ16 *__restrict__ x,int T,int K,int M) {
+    const int lane=(threadIdx.x%(32/ROWS))*ROWS,token=threadIdx.x/(32/ROWS);
+    const int row=blockIdx.x*32+lane,splits=projection_splits(M);
     if(row>=M || token>=T)return;
-    const int padded=(M+31)/32*32;
-    const int ints=K/(KIND==12?8:4),groups=K/(KIND==14?16:32);
+    const int padded=(M+31)/32*32,ints=K/(KIND==12?8:4),groups=K/(KIND==14?16:32);
     const int *bits=(const int *)w+(size_t)blockIdx.x*ints*32+lane;
     const float *scales=(const float *)w+(size_t)padded*ints+(size_t)blockIdx.x*groups*32+lane;
-    const ActivationQ8 *input=x+(size_t)token*(K/32);
-    float result[4]={};
-    if constexpr(KIND==12) {
-        const float *minimum=scales+(size_t)padded*groups;
-        for(int g=2*((K/64)*blockIdx.y/splits);g<2*((K/64)*(blockIdx.y+1)/splits);g+=2) {
-            int dot0[4]={},dot1[4]={};
-            #pragma unroll
-            for(int c=0;c<8;c++) {
-                const int4 weight=*(const int4 *)(bits+(g*4+c)*32);
-                const int x0=input[g].values[c],x1=input[g+1].values[c];
-                #pragma unroll
-                for(int r=0;r<4;r++) {
-                    const unsigned v=((const unsigned *)&weight)[r];
-                    dot0[r]=__dp4a((int)(v&0x0f0f0f0f),x0,dot0[r]);
-                    dot1[r]=__dp4a((int)((v>>4)&0x0f0f0f0f),x1,dot1[r]);
-                }
-            }
-            const float4 s0=*(const float4 *)(scales+g*32),s1=*(const float4 *)(scales+(g+1)*32);
-            const float4 m0=*(const float4 *)(minimum+g*32),m1=*(const float4 *)(minimum+(g+1)*32);
-            #pragma unroll
-            for(int r=0;r<4;r++) {
-                result[r]+=((const float *)&s0)[r]*input[g].scale*dot0[r];
-                result[r]-=((const float *)&m0)[r]*input[g].sum;
-                result[r]+=((const float *)&s1)[r]*input[g+1].scale*dot1[r];
-                result[r]-=((const float *)&m1)[r]*input[g+1].sum;
-            }
-        }
-    } else {
-        for(int g=(K/32)*blockIdx.y/splits;g<(K/32)*(blockIdx.y+1)/splits;g++) {
-            int dot0[4]={},dot1[4]={};
-            #pragma unroll
-            for(int c=0;c<4;c++) {
-                const int4 w0=*(const int4 *)(bits+(g*8+c)*32),w1=*(const int4 *)(bits+(g*8+c+4)*32);
-                const int x0=input[g].values[c],x1=input[g].values[c+4];
-                #pragma unroll
-                for(int r=0;r<4;r++) {
-                    dot0[r]=__dp4a(((const int *)&w0)[r],x0,dot0[r]);
-                    dot1[r]=__dp4a(((const int *)&w1)[r],x1,dot1[r]);
-                }
-            }
-            const float4 s0=*(const float4 *)(scales+g*(KIND==14?64:32));
-            if constexpr(KIND==14) {
-                const float4 s1=*(const float4 *)(scales+g*64+32);
-                #pragma unroll
-                for(int r=0;r<4;r++)result[r]+=input[g].scale*(((const float *)&s0)[r]*dot0[r]+((const float *)&s1)[r]*dot1[r]);
-            } else {
-                #pragma unroll
-                for(int r=0;r<4;r++)result[r]+=input[g].scale*((const float *)&s0)[r]*(dot0[r]+dot1[r]);
-            }
-        }
-    }
-    #pragma unroll
-    for(int r=0;r<4;r++)if(row+r<M)out[((uint64_t)blockIdx.y*T+token)*M+row+r]=result[r];
-}
-
-template<int KIND,int TOKENS>
-__global__ void mm_packed_pair(float *__restrict__ out,const uint8_t *__restrict__ w,
-        const ActivationQ8 *__restrict__ x,int T,int K,int M) {
-    const int lane=(threadIdx.x%8)*4,token=threadIdx.x/8;
-    const int row=blockIdx.x*32+lane;
-    const int splits=projection_splits(M);
-    if(row>=M || token>=T)return;
-    const int padded=(M+31)/32*32;
-    const int ints=K/(KIND==12?8:4),groups=K/(KIND==14?16:32);
-    const int *bits=(const int *)w+(size_t)blockIdx.x*ints*32+lane;
-    const float *scales=(const float *)w+(size_t)padded*ints+(size_t)blockIdx.x*groups*32+lane;
-    const ActivationQ8 *input=x+(size_t)token*(K/32);
-    float result[2][4]={};
-    if constexpr(KIND==12) {
-        const float *minimum=scales+(size_t)padded*groups;
-        for(int g=2*((K/64)*blockIdx.y/splits);g<2*((K/64)*(blockIdx.y+1)/splits);g+=2) {
-            int dot0[2][4]={},dot1[2][4]={};
-            #pragma unroll
-            for(int c=0;c<8;c++) {
-                const int4 weight=*(const int4 *)(bits+(g*4+c)*32);
-                #pragma unroll
-                for(int t=0;t<2;t++)if(token+t*4<T) {
-                    const int x0=input[t*4*(K/32)+g].values[c],x1=input[t*4*(K/32)+g+1].values[c];
-                    #pragma unroll
-                    for(int r=0;r<4;r++) {
-                        const unsigned v=((const unsigned *)&weight)[r];
-                        dot0[t][r]=__dp4a((int)(v&0x0f0f0f0f),x0,dot0[t][r]);
-                        dot1[t][r]=__dp4a((int)((v>>4)&0x0f0f0f0f),x1,dot1[t][r]);
-                    }
-                }
-            }
-            const float4 s0=*(const float4 *)(scales+g*32),s1=*(const float4 *)(scales+(g+1)*32);
-            const float4 m0=*(const float4 *)(minimum+g*32),m1=*(const float4 *)(minimum+(g+1)*32);
-            #pragma unroll
-            for(int t=0;t<2;t++)if(token+t*4<T) {
-                const ActivationQ8 *v=input+t*4*(K/32);
-                #pragma unroll
-                for(int r=0;r<4;r++) {
-                    result[t][r]+=((const float *)&s0)[r]*v[g].scale*dot0[t][r];
-                    result[t][r]-=((const float *)&m0)[r]*v[g].sum;
-                    result[t][r]+=((const float *)&s1)[r]*v[g+1].scale*dot1[t][r];
-                    result[t][r]-=((const float *)&m1)[r]*v[g+1].sum;
-                }
-            }
-        }
-    } else {
-        for(int g=(K/32)*blockIdx.y/splits;g<(K/32)*(blockIdx.y+1)/splits;g++) {
-            int dot0[2][4]={},dot1[2][4]={};
-            #pragma unroll
-            for(int c=0;c<4;c++) {
-                const int4 w0=*(const int4 *)(bits+(g*8+c)*32),w1=*(const int4 *)(bits+(g*8+c+4)*32);
-                #pragma unroll
-                for(int t=0;t<2;t++)if(token+t*4<T) {
-                    const int x0=input[t*4*(K/32)+g].values[c],x1=input[t*4*(K/32)+g].values[c+4];
-                    #pragma unroll
-                    for(int r=0;r<4;r++) {
-                        dot0[t][r]=__dp4a(((const int *)&w0)[r],x0,dot0[t][r]);
-                        dot1[t][r]=__dp4a(((const int *)&w1)[r],x1,dot1[t][r]);
-                    }
-                }
-            }
-            const float4 s0=*(const float4 *)(scales+g*(KIND==14?64:32));
-            if constexpr(KIND==14) {
-                const float4 s1=*(const float4 *)(scales+g*64+32);
-                #pragma unroll
-                for(int t=0;t<2;t++)if(token+t*4<T) {
-                    #pragma unroll
-                    for(int r=0;r<4;r++)result[t][r]+=input[t*4*(K/32)+g].scale*(((const float *)&s0)[r]*dot0[t][r]+((const float *)&s1)[r]*dot1[t][r]);
-                }
-            } else {
-                #pragma unroll
-                for(int t=0;t<2;t++)if(token+t*4<T) {
-                    #pragma unroll
-                    for(int r=0;r<4;r++)result[t][r]+=input[t*4*(K/32)+g].scale*((const float *)&s0)[r]*(dot0[t][r]+dot1[t][r]);
-                }
-            }
-        }
-    }
-    #pragma unroll
-    for(int t=0;t<2;t++)if(token+t*4<T) {
+    float result[PAIRS][ROWS]={};
+    const int step=KIND==12?2:1;
+    const int first=step*((K/(32*step))*blockIdx.y/splits);
+    const int last=step*((K/(32*step))*(blockIdx.y+1)/splits);
+    for(int g=first;g<last;g+=step) {
+        int h0[PAIRS][ROWS]={},l0[PAIRS][ROWS]={},h1[PAIRS][ROWS]={},l1[PAIRS][ROWS]={};
         #pragma unroll
-        for(int r=0;r<4;r++)if(row+r<M)out[((uint64_t)blockIdx.y*T+token+t*4)*M+row+r]=result[t][r];
+        for(int half=0;half<2;half++) {
+            int4 xh0[PAIRS],xl0[PAIRS],xh1[PAIRS],xl1[PAIRS];
+            #pragma unroll
+            for(int t=0;t<PAIRS;t++)if(token+t*(TOKENS/PAIRS)<T) {
+                const ActivationQ16 *v=x+(size_t)(token+t*(TOKENS/PAIRS))*(K/32)+g;
+                xh0[t]=v[0].high[half];xl0[t]=v[0].low[half];
+                if constexpr(KIND==12){xh1[t]=v[1].high[half];xl1[t]=v[1].low[half];}
+            }
+            #pragma unroll
+            for(int c=0;c<4;c++) {
+                const int part=half*4+c;
+                const Vector<ROWS> weight(bits+(KIND==12?g*4+part:g*8+part)*32);
+                #pragma unroll
+                for(int t=0;t<PAIRS;t++)if(token+t*(TOKENS/PAIRS)<T) {
+                    const int hi=((const int *)&xh0[t])[c],lo=((const int *)&xl0[t])[c];
+                    #pragma unroll
+                    for(int r=0;r<ROWS;r++) {
+                        const unsigned value=(unsigned)component(weight,r);
+                        if constexpr(KIND==12) {
+                            const int w0=value&0x0f0f0f0f,w1=(value>>4)&0x0f0f0f0f;
+                            h0[t][r]=__dp4a(w0,hi,h0[t][r]);l0[t][r]=__dp4a(w0,lo,l0[t][r]);
+                            h1[t][r]=__dp4a(w1,((const int *)&xh1[t])[c],h1[t][r]);
+                            l1[t][r]=__dp4a(w1,((const int *)&xl1[t])[c],l1[t][r]);
+                        } else if(half==0) {
+                            h0[t][r]=__dp4a((int)value,hi,h0[t][r]);l0[t][r]=__dp4a((int)value,lo,l0[t][r]);
+                        } else {
+                            h1[t][r]=__dp4a((int)value,hi,h1[t][r]);l1[t][r]=__dp4a((int)value,lo,l1[t][r]);
+                        }
+                    }
+                }
+            }
+        }
+        #pragma unroll
+        for(int t=0;t<PAIRS;t++)if(token+t*(TOKENS/PAIRS)<T) {
+            const ActivationQ16 *v=x+(size_t)(token+t*(TOKENS/PAIRS))*(K/32)+g;
+            #pragma unroll
+            for(int r=0;r<ROWS;r++) {
+                const int dot0=h0[t][r]*256+l0[t][r],dot1=h1[t][r]*256+l1[t][r];
+                if constexpr(KIND==12) {
+                    const float *mn=scales+(size_t)padded*groups;
+                    result[t][r]+=scales[g*32+r]*v[0].scale*dot0;
+                    result[t][r]-=mn[g*32+r]*v[0].sum;
+                    result[t][r]+=scales[(g+1)*32+r]*v[1].scale*dot1;
+                    result[t][r]-=mn[(g+1)*32+r]*v[1].sum;
+                } else if constexpr(KIND==14) {
+                    result[t][r]+=v[0].scale*(scales[g*64+r]*dot0+scales[g*64+32+r]*dot1);
+                } else result[t][r]+=v[0].scale*scales[g*32+r]*(dot0+dot1);
+            }
+        }
+    }
+    #pragma unroll
+    for(int t=0;t<PAIRS;t++)if(token+t*(TOKENS/PAIRS)<T) {
+        #pragma unroll
+        for(int r=0;r<ROWS;r++)if(row+r<M)out[((size_t)blockIdx.y*T+token+t*(TOKENS/PAIRS))*M+row+r]=result[t][r];
     }
 }
 
@@ -571,7 +458,7 @@ void k_mm(float *o,const void *w,const float *x,int type,int T,int K,int M) {
 #undef DISPATCH
 }
 size_t k_mm_workspace_bytes(int T,int K,int M) {
-    return (size_t)T*(K/32)*sizeof(qv::ActivationQ8)+(size_t)16*T*M*sizeof(float);
+    return (size_t)T*(K/32)*sizeof(qv::ActivationQ16)+(size_t)16*T*M*sizeof(float);
 }
 size_t k_mm_weight_bytes(int type,int K,int M) {
     const size_t padded=(M+31)/32*32;
@@ -586,23 +473,28 @@ void k_mm_pack_weights(void *out,const void *w,int type,int K,int M) {
     else qv::pack_weights<8><<<(n+255)/256,256>>>((uint8_t*)out,(const uint8_t*)w,K,M);
 }
 void k_mm_packed(float *o,const void *w,const float *x,int type,int T,int K,int M,void *workspace,bool quantize_input) {
-    auto *packed=(qv::ActivationQ8 *)workspace;
+    auto *packed=(qv::ActivationQ16 *)workspace;
     const int splits=qv::projection_splits(M);
     float *partial=splits==1 ? o : (float *)(packed+(size_t)T*(K/32));
     if(quantize_input)qv::quantize_activations<<<dim3((K/32+7)/8,T),256>>>(packed,x,K);
-#define PAIR() do { if(type==12)qv::mm_packed4<12,8><<<dim3((M+31)/32,splits),64>>>(partial,(const uint8_t*)w,packed,T,K,M); \
-    else if(type==14)qv::mm_packed_pair<14,8><<<dim3((M+31)/32,splits),32>>>(partial,(const uint8_t*)w,packed,T,K,M); \
-    else qv::mm_packed_pair<8,8><<<dim3((M+31)/32,splits),32>>>(partial,(const uint8_t*)w,packed,T,K,M); } while(0)
-#define VECTOR(N) do { if(type==12)qv::mm_packed4<12,N><<<dim3((M+31)/32,splits),N*8>>>(partial,(const uint8_t*)w,packed,T,K,M); \
-    else if(type==14)qv::mm_packed4<14,N><<<dim3((M+31)/32,splits),N*8>>>(partial,(const uint8_t*)w,packed,T,K,M); \
-    else qv::mm_packed4<8,N><<<dim3((M+31)/32,splits),N*8>>>(partial,(const uint8_t*)w,packed,T,K,M); } while(0)
-#define PACKED(N) do { if(type==12)qv::mm_packed<12,N><<<dim3((M+31)/32,splits),N*32>>>(partial,(const uint8_t*)w,packed,T,K,M); \
-    else if(type==14)qv::mm_packed<14,N><<<dim3((M+31)/32,splits),N*32>>>(partial,(const uint8_t*)w,packed,T,K,M); \
-    else qv::mm_packed<8,N><<<dim3((M+31)/32,splits),N*32>>>(partial,(const uint8_t*)w,packed,T,K,M); } while(0)
-    if(T==1){PACKED(1);}else if(T==2){PACKED(2);}else if(T<=4){if(type==8 || M<8192){PACKED(4);}else{VECTOR(4);}}else{PAIR();}
-#undef PACKED
-#undef VECTOR
-#undef PAIR
+#define PROJECT(N,R,P) do { if(type==12)qv::mm_precise<12,N,R,P><<<dim3((M+31)/32,splits),N/P*(32/R)>>>(partial,(const uint8_t*)w,packed,T,K,M); \
+    else if(type==14)qv::mm_precise<14,N,R,P><<<dim3((M+31)/32,splits),N/P*(32/R)>>>(partial,(const uint8_t*)w,packed,T,K,M); \
+    else qv::mm_precise<8,N,R,P><<<dim3((M+31)/32,splits),N/P*(32/R)>>>(partial,(const uint8_t*)w,packed,T,K,M); } while(0)
+    // V100 measurements favor extra rows for Q8/Q6 and paired tokens for Q4.
+    // Keep the arithmetic and split boundaries identical at every batch size.
+    if(T==1){PROJECT(1,1,1);}
+    else if(T==2) {
+        if(M<128 || (type==8 && K==5120 && M<8192)){PROJECT(2,1,1);}
+        else if(type==8){PROJECT(2,4,1);}else{PROJECT(2,2,1);}
+    } else if(T<=4) {
+        if(M<128){PROJECT(4,1,1);}
+        else if((type==12 && M<8192) || (type==14 && K==5120 && M<8192)){PROJECT(4,2,1);}
+        else{PROJECT(4,4,1);}
+    } else {
+        if(type==12 || (type==14 && K==5120 && M<8192)){PROJECT(8,4,2);}
+        else{PROJECT(8,4,1);}
+    }
+#undef PROJECT
     if(splits>1)qv::reduce_projection<<<(T*M+255)/256,256>>>(o,partial,T*M,splits);
 }
 void k_norm(float *o,const float *x,const float *w,int T,int N,float eps){qv::norm<<<T,256>>>(o,x,w,N,eps);}

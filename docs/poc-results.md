@@ -2,7 +2,7 @@
 
 This report records the **initial numeric PoC**. See the subsequent
 [projection optimization report](kernel-optimization.md) for the current
-125.8 tokens/s eight-candidate result, precision tradeoffs, and fresh llama.cpp timings.
+140.7 tokens/s eight-candidate result, FP32 fidelity checks, and fresh llama.cpp timings.
 
 The independent runtime now loads the existing Qwen3.8-27B Q4_K_M GGUF,
 executes all 64 layers on a Tesla V100 32 GB, and returns all 248,320 logits

@@ -1,0 +1,26 @@
+test_all_quantized_formats_all_candidate_rows (test_cuda.CUDATests.test_all_quantized_formats_all_candidate_rows) ... ok
+test_attention_cpu_prefix_causality_and_chunking (test_cuda.CUDATests.test_attention_cpu_prefix_causality_and_chunking) ... ok
+test_delta_matches_cpu_and_sequential_nonzero_state (test_cuda.CUDATests.test_delta_matches_cpu_and_sequential_nonzero_state) ... ok
+test_dp4a16_matches_independent_quantized_reference (test_cuda.CUDATests.test_dp4a16_matches_independent_quantized_reference) ... ok
+test_rejects_invalid_arguments_before_accessing_buffers (test_cuda.CUDATests.test_rejects_invalid_arguments_before_accessing_buffers) ... ok
+test_weighted_rms_on_each_row (test_cuda.CUDATests.test_weighted_rms_on_each_row) ... ok
+test_quantized_tensor_size_and_absolute_offset (test_gguf.GGUFTests.test_quantized_tensor_size_and_absolute_offset) ... ok
+test_rejects_duplicate_tensor_names (test_gguf.GGUFTests.test_rejects_duplicate_tensor_names) ... ok
+test_rejects_huge_counts_before_allocation (test_gguf.GGUFTests.test_rejects_huge_counts_before_allocation) ... ok
+test_rejects_invalid_quantization_shape (test_gguf.GGUFTests.test_rejects_invalid_quantization_shape) ... ok
+test_rejects_out_of_file_tensor (test_gguf.GGUFTests.test_rejects_out_of_file_tensor) ... ok
+test_rejects_overlapping_tensor_payloads (test_gguf.GGUFTests.test_rejects_overlapping_tensor_payloads) ... ok
+test_rejects_truncated_header_and_weights (test_gguf.GGUFTests.test_rejects_truncated_header_and_weights) ... ok
+test_rejects_wrong_magic (test_gguf.GGUFTests.test_rejects_wrong_magic) ... ok
+test_accepts_supported_manifest (test_gguf.ManifestTests.test_accepts_supported_manifest) ... ok
+test_rejects_missing_extra_and_wrongly_quantized_tensor (test_gguf.ManifestTests.test_rejects_missing_extra_and_wrongly_quantized_tensor) ... ok
+test_rejects_unsupported_architecture_dimensions_and_epsilon (test_gguf.ManifestTests.test_rejects_unsupported_architecture_dimensions_and_epsilon) ... ok
+test_all_rows_match_sequential_at_nonzero_prefix (test_model.ModelTests.test_all_rows_match_sequential_at_nonzero_prefix) ... ok
+test_rejected_call_leaves_position_unchanged (test_model.ModelTests.test_rejected_call_leaves_position_unchanged) ... ok
+test_rejected_suffix_restore_and_continuation (test_model.ModelTests.test_rejected_suffix_restore_and_continuation) ... ok
+test_public_header_is_usable_from_c (test_native_abi.NativeABITests.test_public_header_is_usable_from_c) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 25.174s
+
+OK

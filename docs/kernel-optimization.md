@@ -1,5 +1,142 @@
 # V100 projection optimization — 2026-10-03
 
+## Second iteration: Q16 activations and measured launch geometry
+
+The current numeric PoC verifies **140.71 tokens/s in groups of eight**, versus
+129.74 for llama.cpp, while sharply reducing error against the original FP32
+graph. Single-token verification remains slower.
+
+The second iteration replaces the lossy Q8 activation representation with two
+signed-byte components per value. For each group of 32 inputs, `s=max(abs(x))/32639`
+and `q=round(x/s)`. The decomposition `q=256*high+low` lets two signed DP4A
+operations retain nearly 16-bit activation precision, while scaling and
+accumulation remain FP32. Q4 affine offsets still use the original FP32 input sum.
+This does not change the checkpoint's weight quantization.
+
+Aligned `int4` activation loads and a unified projection template replace three
+separate kernels. The number of rows and tokens handled by each thread is chosen
+from V100 measurements for each quantization/shape/batch family. At eight inputs,
+Q4 benefits from reusing four weights across two tokens; most Q8/Q6 projections
+benefit from four rows and one token per thread. Merely adding a second DP4A to
+the old launch geometry was slower. A trial WMMA path with residual correction
+was also slower and was removed.
+
+`make reference` builds `build/libqvelox-reference.so`: the same graph with the
+original GGUF layout and original FP32-activation projections. This separates
+new projection error from the existing differences between Redshift and llama.cpp.
+The diagnostic build is separate from the normal runtime and changes no public ABI.
+
+### Final matched timing
+
+Five alternating-order repetitions per group after warmup, with fresh native
+llama.cpp runs before each Redshift run. Same V100, GGUF weights, input IDs and
+reference harness as round one. Timing includes restoration, the complete graph,
+all vocabulary projections, and copying every logit to the host. Model loading
+and prefix preparation are excluded. The existing Python/C++ host allocation
+difference remains. Both engines run separately.
+
+| Prefix | Group | Previous Redshift tokens/s | Q16 Redshift tokens/s | Fresh llama.cpp tokens/s | Redshift vs llama.cpp |
+|---|---:|---:|---:|---:|---:|
+| 16 | 1 | 23.10 | 25.31 | 27.82 | -9.0% |
+| 16 | 2 | 40.70 | 48.13 | 52.11 | -7.7% |
+| 16 | 4 | 69.72 | 86.50 | 84.76 | +2.1% |
+| 16 | 8 | 125.84 | 140.71 | 129.74 | +8.5% |
+| 128 | 1 | 22.94 | 25.10 | 27.81 | -9.8% |
+| 128 | 2 | 40.49 | 47.62 | 52.15 | -8.7% |
+| 128 | 4 | 69.36 | 85.80 | 84.60 | +1.4% |
+| 128 | 8 | 124.79 | 140.12 | 129.67 | +8.1% |
+
+Eight-token verification improves 11.8–12.3% over round one and measures 8.1–8.5%
+ahead of llama.cpp. Groups of four are 1.4–2.1% ahead; groups of one and two remain
+7.7–9.8% behind. The small four-token margin should not be generalized beyond
+these measurements. The eight-token result is about 3.43x the original FP32 PoC.
+These are **supplied-token verification rates, not generated/accepted tokens/s**.
+
+VRAM is still 23,314 MiB at prefix 16 and 23,328 MiB at prefix 128. Observed model
+load times, including weight repacking, were 11.75 and 12.49 seconds. Weight
+storage is unchanged from round one; the wider activation scratch adds less than
+0.2 MiB. The optimized library SHA-256 is
+`4103bf510d4da412f4db11f8570812d009635a085d32f27cab29fbea44daf320`.
+
+Against llama.cpp, all 16 argmax results still match. Maximum row RMSE is 0.04956
+at prefix 16 and 0.14669 at prefix 128, close to the original FP32 PoC rather than
+the increased Q8 error. Minimum cosines are 0.999822 and 0.998498 respectively;
+maximum absolute logit differences are 0.3003 and 0.7243. No sampling or text-
+quality equivalence is established by these synthetic rows.
+
+Evidence: [prefix 16](../reports/llama-v100-q16-prefix16.json),
+[prefix 128](../reports/llama-v100-q16-prefix128.json),
+[K=5120 microbenchmark](../reports/llama-v100-q16-micro-5120.csv),
+[K=17408 microbenchmark](../reports/llama-v100-q16-micro-17408.csv),
+and [provenance](../reports/llama-v100-q16-provenance.txt).
+
+### Precision against the original FP32 graph
+
+Each cell is the worst RMSE among eight complete vocabulary logit rows after the
+specified prefix. Both candidate libraries use the same IDs and model. The
+libraries are loaded sequentially to avoid requiring two resident models.
+
+| Prefix tokens | Previous Q8 activation path | New Q16 activation path | RMSE reduction |
+|---|---:|---:|---:|
+| 16 | 0.067162 | 0.00031565 | 213x |
+| 128 | 0.117699 | 0.00100459 | 117x |
+| 1024 | 0.106382 | 0.00033811 | 315x |
+
+All 24 Q16 argmax results match the original graph; the worst absolute logit
+difference is 0.00559. This is a numerical fixture, not a text-quality benchmark.
+The remaining Redshift/llama.cpp difference must not be attributed entirely to
+activation quantization. See the complete [precision report](../reports/llama-v100-q16-precision.json).
+
+All 21 CUDA/full-model tests pass, including unchanged grouped/sequential and
+rejected-suffix tolerances. Complete-model sequential equivalence now covers
+every group size from one through eight. The independent projection oracle now also exercises
+131 output rows, covering partial vector tiles under the new small-batch routes.
+Memcheck reports zero errors and racecheck zero hazards. Evidence:
+[tests](../reports/llama-v100-q16-tests.txt),
+[memcheck](../reports/llama-v100-q16-memcheck.txt),
+[racecheck](../reports/llama-v100-q16-racecheck.txt).
+
+### What the NInfer comparisons actually establish
+
+The user supplied [NInfer-4090](https://github.com/sergiuszm/ninfer-4090) and
+[NInfer-3090](https://github.com/Don-Chad/ninfer-3090). Their published generated-token
+rates and Redshift's supplied-token verification rates measure different work.
+The [4090 comparison](https://github.com/sergiuszm/ninfer-4090/blob/rtx4090-port/docs/llamacpp-comparison.md)
+reports about a 10% shallow decode advantage without speculation, 25% on shallow
+code with MTP on both engines, and 82% on prose at 128K with MTP on both. The
+weight artifacts differ. The 3090 README reports 71 generated tokens/s for one
+request and 165.33 aggregate tokens/s for eight simultaneous requests, with MTP3;
+those eight requests are not Redshift's eight candidates from one sequence.
+These are their published measurements, not benchmarks reproduced here.
+
+Source inspection of NInfer-4090 at `aeeba414459d5d6989d57d8487c9d7a2f54bddd3`
+identifies applicable ideas: shape-specific SIMT projection routes, reused CUDA
+Graphs, a GPU draft/verify/accept loop, and replaying compact GDN transition inputs
+when committing an accepted prefix. Its Q4 small-batch dispatch also uses SIMT
+rather than Tensor Cores for many projections. Relevant source paths:
+`src/ops/linear/q4/q4_dispatch.cpp`, `src/core/decode_graph.cpp`,
+`src/targets/qwen3_6/impl/runtime/mtp_impl.h`, and
+`docs/maintainer/replayssm-gdn.md`. No NInfer source was incorporated in this change.
+
+Redshift still needs a complete generation/acceptance loop and efficient accepted-
+prefix state commit before it can make the same comparison. Its current rollback
+replays the entire accepted token prefix through the model. A future replay of
+only recorded recurrent transitions must preserve the exact state-update order;
+mathematical equivalence alone is insufficient. No MTP speedup is claimed here.
+
+### Reproduce the FP32 precision comparison
+
+```sh
+make -j20 all reference
+python3 tools/compare_precision.py /path/to/Qwen3.8-27B-Q4_K_M.gguf \
+  --candidate build/libqvelox.so --output precision.json
+```
+
+The previous-Q8 comparison additionally passes a saved round-one library with
+`--candidate`. Both library hashes are recorded in the precision report.
+
+## First iteration: Q8 activation DP4A (historical results)
+
 The optimized numeric PoC verifies **125.84 tokens/s in groups of eight**, up
 from 41.03, on the same V100 and 27B checkpoint. A fresh llama.cpp measurement
 is 129.40 tokens/s: Redshift remains 2.8% behind at prefix 16 and 3.9% behind

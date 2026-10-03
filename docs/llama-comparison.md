@@ -2,7 +2,7 @@
 
 This report records the **initial FP32-activation comparison**. See the subsequent
 [projection optimization report](kernel-optimization.md) for the current
-125.8 tokens/s eight-candidate result, precision tradeoffs, and fresh llama.cpp timings.
+140.7 tokens/s eight-candidate result, FP32 fidelity checks, and fresh llama.cpp timings.
 
 The proof of concept is slower than the existing llama.cpp engine on the same
 V100 and checkpoint. Its improvement over its own single-token path is not an

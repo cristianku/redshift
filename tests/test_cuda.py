@@ -102,12 +102,12 @@ class CUDATests(unittest.TestCase):
                             self.assertTrue(math.isfinite(out[t * 7 + row]))
                             self.assertAlmostEqual(out[t * 7 + row], ref, delta=2e-5 * (1 + abs(ref)))
 
-    def test_dp4a_matches_independent_quantized_reference(self):
+    def test_dp4a16_matches_independent_quantized_reference(self):
         # Check arithmetic separately from the lossy input representation. Zero
         # blocks and an outlier exercise scaling; short Q8 widths exercise tails.
         for kind in (8, 12, 14):
             for width in ((32, 96, 512, 768) if kind == 8 else (256, 512, 768)):
-                rows = 35 if width == 768 else 7
+                rows = 131 if width == 512 else (35 if width == 768 else 7)
                 data, weights = quantized(kind, width, rows)
                 packed = ct.create_string_buffer(data)
                 for batch in range(1, 9):
@@ -120,7 +120,7 @@ class CUDATests(unittest.TestCase):
                         qx = []
                         for start in range(0, len(x), 32):
                             values = x[start:start+32]
-                            scale = ct.c_float(max(map(abs, values)) / 127).value
+                            scale = ct.c_float(max(map(abs, values)) / 32639).value
                             for value in values:
                                 ratio = ct.c_float(value / scale).value if scale else 0.
                                 rounded = math.copysign(math.floor(abs(ratio) + .5), ratio)

@@ -28,7 +28,7 @@ class ModelTests(unittest.TestCase):
         runtime.reset()
         runtime.evaluate([10, 20, 30])
         runtime.checkpoint()
-        for batch in (1, 2, 4, 8):
+        for batch in range(1, 9):
             with self.subTest(batch=batch):
                 ids = [100 + i * 13 for i in range(batch)]
                 runtime.restore()

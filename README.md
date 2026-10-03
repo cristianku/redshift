@@ -163,16 +163,17 @@ Redshift is currently in the **research and initial implementation phase**.
 
 A numeric proof of concept runs the full 27B graph on a V100 32 GB.
 After [projection-kernel optimization](docs/kernel-optimization.md), measured
-throughput at prefix 16 is **23.1 / 40.7 / 69.7 / 125.8 supplied tokens/s** for
+throughput at prefix 16 is **25.3 / 48.1 / 86.5 / 140.7 supplied tokens/s** for
 groups of 1 / 2 / 4 / 8, including state restoration and all vocabulary logits.
-Eight-token throughput is **3.07x the initial PoC**. A fresh matched llama.cpp
-run measures 27.8 / 52.0 / 84.7 / 129.4 tokens/s, so Redshift remains slower.
+A fresh matched llama.cpp run measures **27.8 / 52.1 / 84.8 / 129.7 tokens/s**.
+Redshift is 8.5% faster at eight candidates and still slower at one and two.
 
 These are **verification-capacity measurements**, not generated or accepted
 speculative tokens/s. Tokenizer and proposal/acceptance loop remain open.
-The optimized runtime uses about 22.8 GiB of VRAM and Q8 activations. Argmax
-matches llama.cpp on 16/16 tested rows, but logit differences increase at the
-longer prefix; general numerical fidelity and text quality remain unvalidated.
+The optimized runtime uses about 22.8 GiB of VRAM and two-byte quantized
+activations. Against the original FP32 projection graph, maximum row RMSE is
+0.0010 across tested prefixes of 16, 128 and 1024 tokens, with all 24 argmax
+results matching. General text quality and sampling equivalence remain unvalidated.
 
 See [the proof-of-concept report](docs/poc-results.md) for raw measurements,
 validation and reproduction commands. The internal Python package remains

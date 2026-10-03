@@ -1,0 +1,12 @@
+Sat Oct  3 15:25:50 UTC 2026
+31629f53165ab6a7dad8c9847dcfd1fdf55829dac1e6e748f4a68581b0033d34  /opt/models/qwen3.8-27b/Qwen3.8-27B-Q4_K_M.gguf
+4103bf510d4da412f4db11f8570812d009635a085d32f27cab29fbea44daf320  build/libqvelox.so
+730115aee5597a56f41dda5ca9eb51c73101df826ef56e27876dc019e9010876  build/libqvelox-reference.so
+ce300ad54d2c89894001613daf9f64aa2160d48745224685c8dce18577c80cb0  build/libqvelox-dp4a-round1.so
+68d3154ddee7b13db8f295b6ce597f014a0aefef5a37eaa39b6a06e642803efc  build/llama-reference
+2f970893af69c2be0dcf5797c3e7601c304d66b244d876885b5bc8d782908334  tests/test_cuda.py
+1c3e1cd44a9348bf1c51054d06d993ab970a165f31746f35fb601707dfc085f8  tests/test_model.py
+a97cce86a8addeb9f40cba7a261c94b1f0c576cb
+name, uuid, driver_version, memory.used [MiB], utilization.gpu [%], clocks.current.sm [MHz], clocks.current.memory [MHz]
+Tesla V100-PCIE-32GB, GPU-1015f4d2-b64e-83ee-147f-780a38d7e199, 580.178.04, 4 MiB, 0 %, 135 MHz, 877 MHz
+active

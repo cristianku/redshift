@@ -1,0 +1,1055 @@
+{
+  "reference": "build/libqvelox-reference.so",
+  "reference_contract": "Original GGUF weights, FP32 activations, original k_mm; same remaining model graph",
+  "model": {
+    "path": "/opt/models/qwen3.8-27b/Qwen3.8-27B-Q4_K_M.gguf",
+    "bytes": 18973870432
+  },
+  "prefixes": [
+    16,
+    128,
+    1024
+  ],
+  "prefix_ids": "10..10+prefix-1",
+  "candidate_ids": [
+    100,
+    113,
+    126,
+    139,
+    152,
+    165,
+    178,
+    191
+  ],
+  "library_sha256": {
+    "build/libqvelox-reference.so": "730115aee5597a56f41dda5ca9eb51c73101df826ef56e27876dc019e9010876",
+    "build/libqvelox-dp4a-round1.so": "ce300ad54d2c89894001613daf9f64aa2160d48745224685c8dce18577c80cb0",
+    "build/libqvelox.so": "4103bf510d4da412f4db11f8570812d009635a085d32f27cab29fbea44daf320"
+  },
+  "comparison": {
+    "build/libqvelox-dp4a-round1.so": {
+      "16": [
+        {
+          "max_absolute_error": 0.28605397418141365,
+          "rmse": 0.051360849863350294,
+          "cosine": 0.9998447778997213,
+          "kl_reference_to_redshift": 0.001954922729798256,
+          "reference_top5": [
+            198,
+            26,
+            30,
+            168977,
+            271
+          ],
+          "redshift_top5": [
+            198,
+            26,
+            30,
+            271,
+            168977
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.2354133501648903,
+          "rmse": 0.04303245604625117,
+          "cosine": 0.9998962604048934,
+          "kl_reference_to_redshift": 0.0011718071840312544,
+          "reference_top5": [
+            157,
+            198,
+            26,
+            271,
+            27
+          ],
+          "redshift_top5": [
+            157,
+            198,
+            26,
+            271,
+            27
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.21597552299499512,
+          "rmse": 0.04114233766670916,
+          "cosine": 0.9997049137956542,
+          "kl_reference_to_redshift": 0.0017394830600371504,
+          "reference_top5": [
+            116,
+            223,
+            225,
+            253,
+            224
+          ],
+          "redshift_top5": [
+            116,
+            223,
+            253,
+            225,
+            224
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.20280056819319725,
+          "rmse": 0.03821638138900486,
+          "cosine": 0.99968297162509,
+          "kl_reference_to_redshift": 0.001729217003759353,
+          "reference_top5": [
+            95,
+            114,
+            252,
+            238,
+            245
+          ],
+          "redshift_top5": [
+            95,
+            114,
+            238,
+            252,
+            245
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.1322650909423828,
+          "rmse": 0.02455391698013481,
+          "cosine": 0.9998797886275664,
+          "kl_reference_to_redshift": 0.000494992731544229,
+          "reference_top5": [
+            222,
+            224,
+            108,
+            123,
+            120
+          ],
+          "redshift_top5": [
+            222,
+            224,
+            108,
+            120,
+            123
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.3132624328136444,
+          "rmse": 0.06716156276094495,
+          "cosine": 0.9997721072407282,
+          "kl_reference_to_redshift": 0.0006400875528736718,
+          "reference_top5": [
+            108,
+            123,
+            113,
+            15434,
+            38513
+          ],
+          "redshift_top5": [
+            108,
+            123,
+            113,
+            15434,
+            38513
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.17811329662799835,
+          "rmse": 0.035646486592353595,
+          "cosine": 0.9999533227733222,
+          "kl_reference_to_redshift": 0.0008302316448872484,
+          "reference_top5": [
+            165,
+            198,
+            166,
+            271,
+            157
+          ],
+          "redshift_top5": [
+            165,
+            198,
+            166,
+            271,
+            157
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.2421104907989502,
+          "rmse": 0.04609626467451458,
+          "cosine": 0.9999382513719034,
+          "kl_reference_to_redshift": 0.0014745288645444357,
+          "reference_top5": [
+            188,
+            198,
+            10,
+            189,
+            190
+          ],
+          "redshift_top5": [
+            188,
+            198,
+            10,
+            189,
+            190
+          ],
+          "argmax_matches": true
+        }
+      ],
+      "128": [
+        {
+          "max_absolute_error": 0.574513703584671,
+          "rmse": 0.11769918132266265,
+          "cosine": 0.9989521377092939,
+          "kl_reference_to_redshift": 0.018071601368148442,
+          "reference_top5": [
+            137,
+            198,
+            138,
+            158740,
+            139
+          ],
+          "redshift_top5": [
+            137,
+            138,
+            198,
+            158740,
+            139
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.5533223152160645,
+          "rmse": 0.10309957583463725,
+          "cosine": 0.999244268375797,
+          "kl_reference_to_redshift": 0.0060028875310424255,
+          "reference_top5": [
+            169347,
+            71613,
+            137,
+            147,
+            157
+          ],
+          "redshift_top5": [
+            169347,
+            137,
+            71613,
+            147,
+            130
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.24971067905426025,
+          "rmse": 0.04697284503969026,
+          "cosine": 0.9996441254638183,
+          "kl_reference_to_redshift": 0.001862145854740615,
+          "reference_top5": [
+            116,
+            223,
+            234,
+            227,
+            238
+          ],
+          "redshift_top5": [
+            116,
+            223,
+            234,
+            227,
+            238
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.47975730895996094,
+          "rmse": 0.10484193767139055,
+          "cosine": 0.9982422218767868,
+          "kl_reference_to_redshift": 0.011968218291567618,
+          "reference_top5": [
+            108,
+            103,
+            252,
+            95,
+            237
+          ],
+          "redshift_top5": [
+            108,
+            237,
+            103,
+            95,
+            252
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.497613787651062,
+          "rmse": 0.09757171991135698,
+          "cosine": 0.9984402753335314,
+          "kl_reference_to_redshift": 0.007480442587595595,
+          "reference_top5": [
+            103,
+            232,
+            118,
+            122,
+            224
+          ],
+          "redshift_top5": [
+            103,
+            232,
+            118,
+            122,
+            224
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.4394068717956543,
+          "rmse": 0.08250216130110197,
+          "cosine": 0.9996501136503027,
+          "kl_reference_to_redshift": 0.009024671946188773,
+          "reference_top5": [
+            123,
+            108,
+            113,
+            61084,
+            38513
+          ],
+          "redshift_top5": [
+            123,
+            108,
+            113,
+            61084,
+            38513
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.5781710147857666,
+          "rmse": 0.0954985675958727,
+          "cosine": 0.9995149868029947,
+          "kl_reference_to_redshift": 0.004928318780669569,
+          "reference_top5": [
+            198,
+            271,
+            188,
+            15,
+            16
+          ],
+          "redshift_top5": [
+            198,
+            271,
+            188,
+            15,
+            127
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.4333600699901581,
+          "rmse": 0.08227330732932793,
+          "cosine": 0.9997064615884179,
+          "kl_reference_to_redshift": 0.002062344054650158,
+          "reference_top5": [
+            188,
+            189,
+            271,
+            192,
+            190
+          ],
+          "redshift_top5": [
+            188,
+            189,
+            271,
+            190,
+            192
+          ],
+          "argmax_matches": true
+        }
+      ],
+      "1024": [
+        {
+          "max_absolute_error": 0.25358355045318604,
+          "rmse": 0.04712604740292439,
+          "cosine": 0.9999308288912938,
+          "kl_reference_to_redshift": 0.001417018211485321,
+          "reference_top5": [
+            68,
+            198,
+            298,
+            71,
+            83
+          ],
+          "redshift_top5": [
+            68,
+            198,
+            71,
+            83,
+            298
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.15969038009643555,
+          "rmse": 0.03260636274234099,
+          "cosine": 0.9999651219838087,
+          "kl_reference_to_redshift": 0.0011306406550091784,
+          "reference_top5": [
+            157,
+            197,
+            198,
+            158,
+            128
+          ],
+          "redshift_top5": [
+            157,
+            198,
+            197,
+            158,
+            128
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.17582416534423828,
+          "rmse": 0.027777945105199108,
+          "cosine": 0.9998830150256561,
+          "kl_reference_to_redshift": 0.0010158749874862425,
+          "reference_top5": [
+            116,
+            223,
+            238,
+            244,
+            225
+          ],
+          "redshift_top5": [
+            116,
+            223,
+            238,
+            244,
+            225
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.22660064697265625,
+          "rmse": 0.04120175499700429,
+          "cosine": 0.9996568140321614,
+          "kl_reference_to_redshift": 0.0014923378615999867,
+          "reference_top5": [
+            97,
+            108,
+            238,
+            237,
+            114
+          ],
+          "redshift_top5": [
+            97,
+            108,
+            237,
+            238,
+            114
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.24964368343353271,
+          "rmse": 0.05394860881431174,
+          "cosine": 0.9993278004323471,
+          "kl_reference_to_redshift": 0.0005895696046476533,
+          "reference_top5": [
+            108,
+            222,
+            254,
+            224,
+            123
+          ],
+          "redshift_top5": [
+            108,
+            222,
+            254,
+            224,
+            123
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.2604503631591797,
+          "rmse": 0.04257954642216533,
+          "cosine": 0.9999012845529998,
+          "kl_reference_to_redshift": 0.0015745731752521291,
+          "reference_top5": [
+            108,
+            113,
+            123,
+            38513,
+            61084
+          ],
+          "redshift_top5": [
+            108,
+            113,
+            123,
+            38513,
+            61084
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.34413832426071167,
+          "rmse": 0.06590180419432518,
+          "cosine": 0.9997299133913594,
+          "kl_reference_to_redshift": 0.002165437573568213,
+          "reference_top5": [
+            166,
+            167,
+            160,
+            165,
+            157
+          ],
+          "redshift_top5": [
+            166,
+            167,
+            165,
+            160,
+            157
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.4980146884918213,
+          "rmse": 0.10638208653306146,
+          "cosine": 0.9996943930714984,
+          "kl_reference_to_redshift": 0.003357470667427085,
+          "reference_top5": [
+            188,
+            192,
+            189,
+            190,
+            198
+          ],
+          "redshift_top5": [
+            188,
+            192,
+            189,
+            190,
+            198
+          ],
+          "argmax_matches": true
+        }
+      ]
+    },
+    "build/libqvelox.so": {
+      "16": [
+        {
+          "max_absolute_error": 0.0013842582702636719,
+          "rmse": 0.00031564883270963093,
+          "cosine": 0.9999999947657112,
+          "kl_reference_to_redshift": 6.860948066173124e-08,
+          "reference_top5": [
+            198,
+            26,
+            30,
+            168977,
+            271
+          ],
+          "redshift_top5": [
+            198,
+            26,
+            30,
+            168977,
+            271
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.0017061233520507812,
+          "rmse": 0.0002996102630830241,
+          "cosine": 0.9999999949687115,
+          "kl_reference_to_redshift": 6.598360290414489e-08,
+          "reference_top5": [
+            157,
+            198,
+            26,
+            271,
+            27
+          ],
+          "redshift_top5": [
+            157,
+            198,
+            26,
+            271,
+            27
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.000736236572265625,
+          "rmse": 0.00014394048287528658,
+          "cosine": 0.9999999964013322,
+          "kl_reference_to_redshift": 1.9678510304537898e-08,
+          "reference_top5": [
+            116,
+            223,
+            225,
+            253,
+            224
+          ],
+          "redshift_top5": [
+            116,
+            223,
+            225,
+            253,
+            224
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.0011663436889648438,
+          "rmse": 0.0001844478963599929,
+          "cosine": 0.9999999925562976,
+          "kl_reference_to_redshift": 5.1527952465021076e-08,
+          "reference_top5": [
+            95,
+            114,
+            252,
+            238,
+            245
+          ],
+          "redshift_top5": [
+            95,
+            114,
+            252,
+            238,
+            245
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.000937342643737793,
+          "rmse": 0.00016153485450317264,
+          "cosine": 0.9999999949325271,
+          "kl_reference_to_redshift": 2.371917176979467e-08,
+          "reference_top5": [
+            222,
+            224,
+            108,
+            123,
+            120
+          ],
+          "redshift_top5": [
+            222,
+            224,
+            108,
+            123,
+            120
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.0008993148803710938,
+          "rmse": 0.00016369012370535892,
+          "cosine": 0.9999999980798155,
+          "kl_reference_to_redshift": 1.895697965586851e-08,
+          "reference_top5": [
+            108,
+            123,
+            113,
+            15434,
+            38513
+          ],
+          "redshift_top5": [
+            108,
+            123,
+            113,
+            15434,
+            38513
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.0014090538024902344,
+          "rmse": 0.0002397736519765641,
+          "cosine": 0.9999999976152758,
+          "kl_reference_to_redshift": 4.9783519512633015e-08,
+          "reference_top5": [
+            165,
+            198,
+            166,
+            271,
+            157
+          ],
+          "redshift_top5": [
+            165,
+            198,
+            166,
+            271,
+            157
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.0013155937194824219,
+          "rmse": 0.00024067899644358558,
+          "cosine": 0.9999999982274045,
+          "kl_reference_to_redshift": 5.6125153678782055e-08,
+          "reference_top5": [
+            188,
+            198,
+            10,
+            189,
+            190
+          ],
+          "redshift_top5": [
+            188,
+            198,
+            10,
+            189,
+            190
+          ],
+          "argmax_matches": true
+        }
+      ],
+      "128": [
+        {
+          "max_absolute_error": 0.004906654357910156,
+          "rmse": 0.0010045881335301106,
+          "cosine": 0.9999999246077597,
+          "kl_reference_to_redshift": 1.9022196713412937e-07,
+          "reference_top5": [
+            137,
+            198,
+            138,
+            158740,
+            139
+          ],
+          "redshift_top5": [
+            137,
+            198,
+            138,
+            158740,
+            139
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.004273891448974609,
+          "rmse": 0.0009285831982552744,
+          "cosine": 0.9999999391544804,
+          "kl_reference_to_redshift": 4.2701690906228014e-07,
+          "reference_top5": [
+            169347,
+            71613,
+            137,
+            147,
+            157
+          ],
+          "redshift_top5": [
+            169347,
+            71613,
+            137,
+            147,
+            157
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.0018296092748641968,
+          "rmse": 0.00037176150082508753,
+          "cosine": 0.9999999767967748,
+          "kl_reference_to_redshift": 4.640853586496397e-08,
+          "reference_top5": [
+            116,
+            223,
+            234,
+            227,
+            238
+          ],
+          "redshift_top5": [
+            116,
+            223,
+            234,
+            227,
+            238
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.0036008358001708984,
+          "rmse": 0.0007553444038104678,
+          "cosine": 0.9999999087862383,
+          "kl_reference_to_redshift": 4.3930840807786904e-07,
+          "reference_top5": [
+            108,
+            103,
+            252,
+            95,
+            237
+          ],
+          "redshift_top5": [
+            108,
+            103,
+            252,
+            95,
+            237
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.005588531494140625,
+          "rmse": 0.0008701704866327258,
+          "cosine": 0.999999908269877,
+          "kl_reference_to_redshift": 1.4042770701849882e-07,
+          "reference_top5": [
+            103,
+            232,
+            118,
+            122,
+            224
+          ],
+          "redshift_top5": [
+            103,
+            232,
+            118,
+            122,
+            224
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.0017995834350585938,
+          "rmse": 0.0003453231803431102,
+          "cosine": 0.999999993221157,
+          "kl_reference_to_redshift": 4.354776390998546e-08,
+          "reference_top5": [
+            123,
+            108,
+            113,
+            61084,
+            38513
+          ],
+          "redshift_top5": [
+            123,
+            108,
+            113,
+            61084,
+            38513
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.002497434616088867,
+          "rmse": 0.00044156728417027273,
+          "cosine": 0.9999999898300261,
+          "kl_reference_to_redshift": 1.464671970732531e-07,
+          "reference_top5": [
+            198,
+            271,
+            188,
+            15,
+            16
+          ],
+          "redshift_top5": [
+            198,
+            271,
+            188,
+            15,
+            16
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.002471446990966797,
+          "rmse": 0.0004816182867815538,
+          "cosine": 0.9999999907989013,
+          "kl_reference_to_redshift": 9.277852065119573e-08,
+          "reference_top5": [
+            188,
+            189,
+            271,
+            192,
+            190
+          ],
+          "redshift_top5": [
+            188,
+            189,
+            271,
+            192,
+            190
+          ],
+          "argmax_matches": true
+        }
+      ],
+      "1024": [
+        {
+          "max_absolute_error": 0.0009108781814575195,
+          "rmse": 0.00017192665203246175,
+          "cosine": 0.999999999058741,
+          "kl_reference_to_redshift": 2.2610643786129722e-08,
+          "reference_top5": [
+            68,
+            198,
+            298,
+            71,
+            83
+          ],
+          "redshift_top5": [
+            68,
+            198,
+            298,
+            71,
+            83
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.0010224580764770508,
+          "rmse": 0.00018538003532860857,
+          "cosine": 0.9999999988363697,
+          "kl_reference_to_redshift": 2.426320603442498e-08,
+          "reference_top5": [
+            157,
+            197,
+            198,
+            158,
+            128
+          ],
+          "redshift_top5": [
+            157,
+            197,
+            198,
+            158,
+            128
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.0010606050491333008,
+          "rmse": 0.00023258849262411827,
+          "cosine": 0.9999999941950681,
+          "kl_reference_to_redshift": 2.3445807001292514e-08,
+          "reference_top5": [
+            116,
+            223,
+            238,
+            244,
+            225
+          ],
+          "redshift_top5": [
+            116,
+            223,
+            238,
+            244,
+            225
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.0009967684745788574,
+          "rmse": 0.00019080704513535986,
+          "cosine": 0.9999999922676479,
+          "kl_reference_to_redshift": 4.5808380164664195e-08,
+          "reference_top5": [
+            97,
+            108,
+            238,
+            237,
+            114
+          ],
+          "redshift_top5": [
+            97,
+            108,
+            238,
+            237,
+            114
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.0013704299926757812,
+          "rmse": 0.00021282298295537832,
+          "cosine": 0.9999999885892177,
+          "kl_reference_to_redshift": 3.620449332241248e-08,
+          "reference_top5": [
+            108,
+            222,
+            254,
+            224,
+            123
+          ],
+          "redshift_top5": [
+            108,
+            222,
+            254,
+            224,
+            123
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.001795053482055664,
+          "rmse": 0.0003381120362491947,
+          "cosine": 0.9999999932233394,
+          "kl_reference_to_redshift": 5.2595208295928704e-08,
+          "reference_top5": [
+            108,
+            113,
+            123,
+            38513,
+            61084
+          ],
+          "redshift_top5": [
+            108,
+            113,
+            123,
+            38513,
+            61084
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.002167344093322754,
+          "rmse": 0.0002923282402160466,
+          "cosine": 0.9999999942840816,
+          "kl_reference_to_redshift": 4.160961178643387e-08,
+          "reference_top5": [
+            166,
+            167,
+            160,
+            165,
+            157
+          ],
+          "redshift_top5": [
+            166,
+            167,
+            160,
+            165,
+            157
+          ],
+          "argmax_matches": true
+        },
+        {
+          "max_absolute_error": 0.0016291141510009766,
+          "rmse": 0.0003075870574683351,
+          "cosine": 0.9999999963055972,
+          "kl_reference_to_redshift": 7.159373614415521e-08,
+          "reference_top5": [
+            188,
+            192,
+            189,
+            190,
+            198
+          ],
+          "redshift_top5": [
+            188,
+            192,
+            189,
+            190,
+            198
+          ],
+          "argmax_matches": true
+        }
+      ]
+    }
+  }
+}

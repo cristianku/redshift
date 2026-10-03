@@ -324,12 +324,14 @@ struct Model {
             check(cudaMemcpy(static_cast<char *>(tensor->data())+done,staging.data(),chunk,cudaMemcpyHostToDevice));
             done+=chunk;
         }
+#ifndef QVELOX_REFERENCE_PROJECTIONS
         if(slot!=0 && spec.kind!=0) {
             Owned packed=allocate(k_mm_weight_bytes(spec.kind,spec.width,spec.rows));
             k_mm_pack_weights(packed->data(),tensor->data(),spec.kind,spec.width,spec.rows);
             finish();
             tensor=std::move(packed);
         }
+#endif
         weights[slot]=std::move(tensor);
         uploaded++;
         if(uploaded==TENSOR_COUNT) {
@@ -337,10 +339,16 @@ struct Model {
             std::vector<char>().swap(staging);
         }
     }
-    // Only adjacent projections of the same unchanged input reuse Q8 blocks.
+    // Only adjacent projections of the same unchanged input reuse packed activations.
     void projection(float *out,int slot,const float *input,int batch,bool reuse_input=false) {
         const Layout spec=layout(slot);
+#ifdef QVELOX_REFERENCE_PROJECTIONS
+        // Diagnostic build: the same model graph with original GGUF/FP32 projections.
+        (void)reuse_input;
+        k_mm(out,weights[slot]->data(),input,spec.kind,batch,spec.width,spec.rows);
+#else
         k_mm_packed(out,weights[slot]->data(),input,spec.kind,batch,spec.width,spec.rows,projection_workspace->data(),!reuse_input);
+#endif
         check(cudaGetLastError());
     }
     void evaluate(const int *tokens,int batch,float *out) {
